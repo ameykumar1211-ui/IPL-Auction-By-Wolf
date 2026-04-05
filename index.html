@@ -1,0 +1,1321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPL Auction Simulator</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Phosphor Icons for UI -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <style>
+        /* Custom scrollbar for chat and team list */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.5); }
+        ::-webkit-scrollbar-thumb { background: rgba(79, 70, 229, 0.5); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(79, 70, 229, 0.8); }
+        .screen { display: none; }
+        .screen.active { display: flex; }
+    </style>
+    
+    <!-- Failsafe Error Handler -->
+    <script>
+        window.addEventListener('error', function(e) {
+            const loadingScreen = document.getElementById('screen-loading');
+            if(loadingScreen && window.getComputedStyle(loadingScreen).display !== 'none') {
+                loadingScreen.innerHTML = `
+                    <div class="text-center p-6 bg-slate-900 rounded-xl border border-red-500/50 max-w-md mx-auto mt-20 shadow-lg">
+                        <i class="ph-fill ph-warning-circle text-red-500 text-5xl mb-4"></i>
+                        <h2 class="text-xl font-bold text-white mb-2">Setup Error</h2>
+                        <p class="text-slate-400 text-sm mb-4">${e.message || 'Script failed to load.'}</p>
+                    </div>`;
+            }
+        });
+    </script>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen overflow-x-hidden flex flex-col">
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-6 left-1/2 -translate-x-1/2 bg-slate-800 border border-slate-700 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 z-50 transition-opacity duration-300 opacity-0 pointer-events-none text-lg font-semibold">
+        <i class="ph-fill ph-bell-ringing text-indigo-400 text-2xl"></i>
+        <span id="toast-message"></span>
+    </div>
+
+    <!-- Screen 1: Loading -->
+    <div id="screen-loading" class="screen active min-h-screen flex-col items-center justify-center text-white w-full">
+        <div class="animate-pulse flex flex-col items-center">
+            <i class="ph-fill ph-trophy text-yellow-500 text-5xl mb-4"></i>
+            <h2 class="text-xl font-bold">Connecting to Auction Servers...</h2>
+        </div>
+    </div>
+
+    <!-- Screen 1.5: Auth (Login/Register) -->
+    <div id="screen-auth" class="screen min-h-screen flex-col items-center justify-center p-4 w-full">
+        <div class="bg-slate-900 border border-indigo-500/30 p-8 rounded-2xl shadow-[0_0_40px_rgba(79,70,229,0.15)] max-w-md w-full">
+            <div class="text-center mb-6">
+                <i class="ph-fill ph-shield-check text-indigo-400 text-5xl mb-2"></i>
+                <h2 id="auth-title" class="text-3xl font-extrabold text-white">Login</h2>
+                <p class="text-slate-400 text-sm mt-2">Sign in to sync your auction progress</p>
+            </div>
+            
+            <form id="auth-form" class="space-y-4">
+                <div>
+                    <input type="email" id="auth-email" placeholder="Email Address" required class="w-full bg-slate-800 border border-slate-700 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all" />
+                </div>
+                <div>
+                    <input type="password" id="auth-password" placeholder="Password" required class="w-full bg-slate-800 border border-slate-700 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all" />
+                </div>
+                <button type="submit" id="auth-submit-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-all shadow-[0_0_15px_rgba(79,70,229,0.4)]">Login</button>
+            </form>
+            
+            <div class="mt-6 flex flex-col gap-3">
+                <button id="auth-toggle-btn" class="text-indigo-400 hover:text-indigo-300 text-sm text-center w-full transition-colors font-medium">Need an account? Register here</button>
+                <div class="flex items-center gap-3 my-2">
+                    <div class="h-px bg-slate-700 flex-1"></div>
+                    <span class="text-slate-500 text-xs uppercase font-bold tracking-wider">OR</span>
+                    <div class="h-px bg-slate-700 flex-1"></div>
+                </div>
+                <button id="auth-guest-btn" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2">
+                    <i class="ph ph-user"></i> Play as Guest
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Screen 2: Identity (Team Name) -->
+    <div id="screen-identity" class="screen min-h-screen flex-col items-center justify-center p-4 w-full relative">
+        <div class="absolute top-6 right-6">
+            <button class="btn-logout flex items-center gap-2 text-slate-400 hover:text-red-400 transition-colors bg-slate-900 px-4 py-2 rounded-lg border border-slate-800 hover:border-red-900">
+                <i class="ph ph-sign-out"></i> Logout
+            </button>
+        </div>
+        <div class="bg-slate-900 border border-indigo-500/30 p-8 rounded-2xl shadow-[0_0_40px_rgba(79,70,229,0.15)] max-w-md w-full text-center">
+            <div class="w-20 h-20 bg-indigo-500/20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-[0_0_20px_rgba(79,70,229,0.4)]">
+                <i class="ph-fill ph-trophy text-indigo-400 text-4xl"></i>
+            </div>
+            <h1 class="text-3xl font-extrabold text-white mb-2">IPL Auction</h1>
+            <p class="text-slate-400 mb-8">Enter your franchise name to begin</p>
+            
+            <form id="identity-form" class="space-y-4">
+                <div>
+                    <input type="text" id="team-name-input" placeholder="e.g. Mumbai Indians" required
+                        class="w-full bg-slate-800 border border-slate-700 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all" />
+                </div>
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-all shadow-[0_0_15px_rgba(79,70,229,0.4)] hover:shadow-[0_0_25px_rgba(79,70,229,0.6)] flex items-center justify-center gap-2">
+                    <i class="ph ph-sign-in text-xl"></i> Enter Auction House
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Screen 3: Home (Menu) -->
+    <div id="screen-home" class="screen min-h-screen flex-col p-6 w-full relative">
+        <div class="absolute top-6 right-6">
+            <button class="btn-logout flex items-center gap-2 text-slate-400 hover:text-red-400 transition-colors bg-slate-900 px-4 py-2 rounded-lg border border-slate-800 hover:border-red-900">
+                <i class="ph ph-sign-out"></i> Logout
+            </button>
+        </div>
+        <div class="max-w-4xl mx-auto mt-10 w-full">
+            <div class="flex items-center justify-between mb-12 w-full">
+                <div>
+                    <h1 class="text-4xl font-extrabold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent" id="welcome-text">
+                        Welcome, Team
+                    </h1>
+                    <p class="text-slate-400 mt-2">Ready to build your dream team?</p>
+                </div>
+                <div class="h-12 w-12 bg-slate-800 rounded-full flex items-center justify-center border border-slate-700">
+                    <i class="ph ph-user text-indigo-400 text-2xl"></i>
+                </div>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-6 w-full">
+                <button id="btn-create-room" class="bg-slate-900 border border-slate-800 p-8 rounded-2xl hover:border-indigo-500 hover:shadow-[0_0_30px_rgba(79,70,229,0.2)] transition-all group flex flex-col items-center text-center">
+                    <div class="h-16 w-16 bg-indigo-500/10 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                        <i class="ph ph-plus-circle text-indigo-400 text-3xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-2">Create Private Room</h3>
+                    <p class="text-sm text-slate-400">Host an auction for you and your friends with a secret code.</p>
+                </button>
+
+                <button id="btn-join-random" class="bg-slate-900 border border-slate-800 p-8 rounded-2xl hover:border-green-500 hover:shadow-[0_0_30px_rgba(34,197,94,0.2)] transition-all group flex flex-col items-center text-center">
+                    <div class="h-16 w-16 bg-green-500/10 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                        <i class="ph ph-shuffle text-green-400 text-3xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-2">Join Random</h3>
+                    <p class="text-sm text-slate-400">Jump into an active public auction with random players globally.</p>
+                </button>
+
+                <div class="bg-slate-900 border border-slate-800 p-8 rounded-2xl flex flex-col items-center text-center">
+                    <div class="h-16 w-16 bg-purple-500/10 rounded-full flex items-center justify-center mb-4">
+                        <i class="ph ph-magnifying-glass text-purple-400 text-3xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4">Join via Code</h3>
+                    <form id="form-join-code" class="w-full">
+                        <div class="flex gap-2">
+                            <input type="text" id="room-code-input" placeholder="Room Code" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-center uppercase font-mono focus:outline-none focus:border-purple-500" />
+                            <button type="submit" class="bg-purple-600 hover:bg-purple-700 px-4 rounded-lg font-bold transition-colors">Join</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Screen 4: Lobby -->
+    <div id="screen-lobby" class="screen min-h-screen items-center justify-center p-6 w-full">
+        <div class="max-w-2xl w-full bg-slate-900 border border-indigo-500/30 rounded-3xl p-8 shadow-[0_0_50px_rgba(79,70,229,0.1)]">
+            <div class="text-center mb-8">
+                <h2 class="text-2xl font-bold text-slate-300 mb-2">Auction Lobby</h2>
+                <div class="inline-block bg-slate-950 border border-indigo-500/50 rounded-lg px-6 py-3 mb-4">
+                    <p class="text-sm text-slate-400 mb-1">Room Code</p>
+                    <p id="lobby-room-code" class="text-4xl font-mono font-bold tracking-widest text-indigo-400">-----</p>
+                </div>
+                <p class="text-sm text-slate-500">Share this code with your friends to join</p>
+            </div>
+
+            <div class="mb-8">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold flex items-center gap-2"><i class="ph ph-users text-xl"></i> Connected Teams (<span id="lobby-member-count">0</span>)</h3>
+                </div>
+                <div id="lobby-members-list" class="grid grid-cols-2 gap-3">
+                    <!-- Members injected here -->
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center mt-8 pt-6 border-t border-slate-800">
+                <button class="btn-leave-room text-slate-400 hover:text-white flex items-center gap-2 transition-colors">
+                    <i class="ph ph-sign-out text-lg"></i> Leave Room
+                </button>
+                <div id="lobby-host-controls" class="hidden">
+                    <button id="btn-start-auction" class="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:hover:bg-indigo-600 px-8 py-3 rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(79,70,229,0.4)] flex items-center gap-2">
+                        <i class="ph ph-play text-lg"></i> Start Auction
+                    </button>
+                </div>
+                <div id="lobby-waiting-text" class="flex items-center gap-2 text-amber-400 animate-pulse hidden">
+                    <i class="ph ph-clock text-lg"></i> Waiting for host to start...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Screen 5: Auction / Live Room -->
+    <div id="screen-auction" class="screen min-h-screen flex-col w-full bg-slate-950 md:h-screen md:overflow-hidden overflow-y-auto">
+        <!-- Header -->
+        <header class="bg-slate-900 border-b border-indigo-900/50 p-4 flex justify-between items-center shadow-lg shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="bg-indigo-600 p-2 rounded-lg"><i class="ph ph-gavel text-white text-2xl"></i></div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight">IPL Mega Auction</h1>
+                    <p class="text-xs text-slate-400 font-mono">ROOM: <span id="header-room-code"></span></p>
+                </div>
+            </div>
+            <div class="flex items-center gap-6">
+                <div class="text-right">
+                    <p id="header-team-name" class="text-xs text-slate-400 uppercase tracking-wider">My Team</p>
+                    <p id="header-team-purse" class="font-bold text-xl text-green-400">₹0</p>
+                </div>
+                <button class="btn-leave-room p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors" title="Leave Auction">
+                    <i class="ph ph-sign-out text-xl"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col md:flex-row p-4 gap-4 min-h-0">
+            
+            <!-- Left Column - Player Card & Sticky Bid Buttons -->
+            <div class="flex-1 flex flex-col gap-4 min-h-[65vh] md:min-h-0 w-full relative">
+                
+                <!-- Player Card Container (Scrollable internally if small) -->
+                <div id="auction-player-card" class="flex-1 bg-slate-900 rounded-2xl border border-slate-800 p-4 md:p-6 flex flex-col items-center justify-center relative overflow-y-auto min-h-0 shadow-lg">
+                    <!-- Injected via JS -->
+                </div>
+                
+                <!-- FIXED Bidding Console (Always Visible) -->
+                <div id="auction-bid-console" class="bg-slate-950 rounded-2xl border-2 border-indigo-500 p-4 flex flex-col md:flex-row items-center gap-4 shrink-0 shadow-[0_0_30px_rgba(79,70,229,0.3)] z-20">
+                    <!-- Injected via JS -->
+                </div>
+
+            </div>
+
+            <!-- Right Column - Teams & Chat -->
+            <div class="w-full md:w-80 flex flex-col gap-4 shrink-0 h-[60vh] md:h-full">
+                
+                <!-- Teams List -->
+                <div class="bg-slate-900 rounded-2xl border border-slate-800 flex-1 flex flex-col min-h-0 relative">
+                    <div class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/50 shrink-0">
+                        <h3 class="font-bold flex items-center gap-2"><i class="ph ph-users text-lg"></i> Franchises</h3>
+                        <span id="auction-teams-count" class="bg-slate-800 text-xs px-2 py-1 rounded text-slate-400">0</span>
+                    </div>
+                    
+                    <div id="auction-teams-list" class="flex-1 overflow-y-auto p-2 space-y-2 min-h-0">
+                        <!-- Teams injected here -->
+                    </div>
+                </div>
+
+                <!-- Activity/Chat Log -->
+                <div class="bg-slate-900 rounded-2xl border border-slate-800 h-64 shrink-0 flex flex-col">
+                    <div class="p-3 border-b border-slate-800 shrink-0">
+                        <h3 class="font-bold text-sm flex items-center gap-2"><i class="ph ph-chat-circle text-lg"></i> Live Activity</h3>
+                    </div>
+                    <div id="auction-logs-list" class="flex-1 overflow-y-auto p-3 space-y-3 flex flex-col-reverse min-h-0">
+                        <!-- Logs injected here -->
+                    </div>
+                    <form id="chat-form" class="p-2 border-t border-slate-800 bg-slate-950/50 shrink-0">
+                        <div class="flex gap-2">
+                            <input type="text" id="chat-input" placeholder="Say something..." autocomplete="off"
+                                class="w-full bg-slate-800 text-white text-sm px-3 py-2 rounded-lg border border-slate-700 focus:outline-none focus:border-indigo-500" />
+                            <button type="submit" class="bg-indigo-600 p-2 rounded-lg text-white hover:bg-indigo-500 transition-colors">
+                                <i class="ph ph-paper-plane-right text-lg"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase logic and App Scripts -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, updateDoc, onSnapshot, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const userProvidedConfig = {
+            apiKey: "AIzaSyD07Puhdwug5YbXxpQ14vwhyb-vOchQ3io",
+            authDomain: "ipl-auction-amey.firebaseapp.com",
+            projectId: "ipl-auction-amey",
+            storageBucket: "ipl-auction-amey.firebasestorage.app",
+            messagingSenderId: "614780702956",
+            appId: "1:614780702956:web:22547bfc203669d33215c9"
+        };
+
+        let firebaseConfig = userProvidedConfig;
+        try {
+            if (typeof __firebase_config !== 'undefined' && __firebase_config && __firebase_config.trim() !== "") {
+                const envConfig = JSON.parse(__firebase_config);
+                if (envConfig.apiKey) firebaseConfig = envConfig;
+            }
+        } catch (e) {
+            console.warn("Using fallback configuration.");
+        }
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' && __app_id ? __app_id : 'default-app-id';
+
+        // --- Expanded Constants (200 Players) ---
+        const PLAYERS = [
+            { id: 1, name: "MS Dhoni", role: "Wicket Keeper", basePrice: 20000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=MSD&backgroundColor=f59e0b" },
+            { id: 2, name: "Virat Kohli", role: "Batsman", basePrice: 20000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=VK&backgroundColor=ef4444" },
+            { id: 3, name: "Jasprit Bumrah", role: "Bowler", basePrice: 20000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=JB&backgroundColor=3b82f6" },
+            { id: 4, name: "Rashid Khan", role: "All-Rounder", basePrice: 20000000, country: "AFG", img: "https://api.dicebear.com/7.x/initials/svg?seed=RK&backgroundColor=10b981" },
+            { id: 5, name: "Suryakumar Yadav", role: "Batsman", basePrice: 20000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=SY&backgroundColor=8b5cf6" },
+            { id: 6, name: "Mitchell Starc", role: "Bowler", basePrice: 20000000, country: "AUS", img: "https://api.dicebear.com/7.x/initials/svg?seed=MS&backgroundColor=eab308" },
+            { id: 7, name: "Heinrich Klaasen", role: "Wicket Keeper", basePrice: 15000000, country: "RSA", img: "https://api.dicebear.com/7.x/initials/svg?seed=HK&backgroundColor=f97316" },
+            { id: 8, name: "Rinku Singh", role: "Batsman", basePrice: 10000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=RS&backgroundColor=a855f7" },
+            { id: 9, name: "Matheesha Pathirana", role: "Bowler", basePrice: 10000000, country: "SL", img: "https://api.dicebear.com/7.x/initials/svg?seed=MP&backgroundColor=ec4899" },
+            { id: 10, name: "Travis Head", role: "Batsman", basePrice: 20000000, country: "AUS", img: "https://api.dicebear.com/7.x/initials/svg?seed=TH&backgroundColor=14b8a6" },
+            { id: 11, name: "Trent Boult", role: "Bowler", basePrice: 20000000, country: "NZ", img: "https://api.dicebear.com/7.x/initials/svg?seed=TB&backgroundColor=06b6d4" },
+            { id: 12, name: "Glenn Maxwell", role: "All-Rounder", basePrice: 20000000, country: "AUS", img: "https://api.dicebear.com/7.x/initials/svg?seed=GM&backgroundColor=ef4444" },
+            { id: 13, name: "Nicholas Pooran", role: "Wicket Keeper", basePrice: 20000000, country: "WI", img: "https://api.dicebear.com/7.x/initials/svg?seed=NP&backgroundColor=6366f1" },
+            { id: 14, name: "Yashasvi Jaiswal", role: "Batsman", basePrice: 15000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=YJ&backgroundColor=8b5cf6" },
+            { id: 15, name: "Pat Cummins", role: "All-Rounder", basePrice: 20000000, country: "AUS", img: "https://api.dicebear.com/7.x/initials/svg?seed=PC&backgroundColor=eab308" },
+            { id: 16, name: "Faf du Plessis", role: "Batsman", basePrice: 15000000, country: "RSA", img: "https://api.dicebear.com/7.x/initials/svg?seed=FDP&backgroundColor=ef4444" },
+            { id: 17, name: "David Warner", role: "Batsman", basePrice: 15000000, country: "AUS", img: "https://api.dicebear.com/7.x/initials/svg?seed=DW&backgroundColor=eab308" },
+            { id: 18, name: "Kagiso Rabada", role: "Bowler", basePrice: 20000000, country: "RSA", img: "https://api.dicebear.com/7.x/initials/svg?seed=KR&backgroundColor=3b82f6" },
+            { id: 19, name: "Andre Russell", role: "All-Rounder", basePrice: 20000000, country: "WI", img: "https://api.dicebear.com/7.x/initials/svg?seed=AR&backgroundColor=6366f1" },
+            { id: 20, name: "Sunil Narine", role: "All-Rounder", basePrice: 20000000, country: "WI", img: "https://api.dicebear.com/7.x/initials/svg?seed=SN&backgroundColor=8b5cf6" },
+            { id: 21, name: "KL Rahul", role: "Wicket Keeper", basePrice: 20000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=KLR&backgroundColor=10b981" },
+            { id: 22, name: "Rishabh Pant", role: "Wicket Keeper", basePrice: 20000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=RP&backgroundColor=06b6d4" },
+            { id: 23, name: "Yuzvendra Chahal", role: "Bowler", basePrice: 15000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=YC&backgroundColor=ec4899" },
+            { id: 24, name: "Shubman Gill", role: "Batsman", basePrice: 20000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=SG&backgroundColor=f59e0b" },
+            { id: 25, name: "Sam Curran", role: "All-Rounder", basePrice: 20000000, country: "ENG", img: "https://api.dicebear.com/7.x/initials/svg?seed=SC&backgroundColor=ef4444" },
+            { id: 26, name: "Mohammed Siraj", role: "Bowler", basePrice: 15000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=MDS&backgroundColor=a855f7" },
+            { id: 27, name: "Quinton de Kock", role: "Wicket Keeper", basePrice: 15000000, country: "RSA", img: "https://api.dicebear.com/7.x/initials/svg?seed=QDK&backgroundColor=3b82f6" },
+            { id: 28, name: "Hardik Pandya", role: "All-Rounder", basePrice: 20000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=HP&backgroundColor=14b8a6" },
+            { id: 29, name: "Rohit Sharma", role: "Batsman", basePrice: 20000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=RS&backgroundColor=6366f1" },
+            { id: 30, name: "Ravindra Jadeja", role: "All-Rounder", basePrice: 20000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=RJ&backgroundColor=eab308" },
+            { id: 31, name: "Jos Buttler", role: "Wicket Keeper", basePrice: 20000000, country: "ENG", img: "https://api.dicebear.com/7.x/initials/svg?seed=JB&backgroundColor=ec4899" },
+            { id: 32, name: "Sanju Samson", role: "Wicket Keeper", basePrice: 15000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=SS&backgroundColor=3b82f6" },
+            { id: 33, name: "Liam Livingstone", role: "All-Rounder", basePrice: 20000000, country: "ENG", img: "https://api.dicebear.com/7.x/initials/svg?seed=LL&backgroundColor=ef4444" },
+            { id: 34, name: "Cameron Green", role: "All-Rounder", basePrice: 20000000, country: "ENG", img: "https://api.dicebear.com/7.x/initials/svg?seed=CG&backgroundColor=14b8a6" },
+            { id: 35, name: "Axar Patel", role: "All-Rounder", basePrice: 15000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=AP&backgroundColor=06b6d4" },
+            { id: 36, name: "Ishan Kishan", role: "Wicket Keeper", basePrice: 15000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=IK&backgroundColor=8b5cf6" },
+            { id: 37, name: "Phil Salt", role: "Wicket Keeper", basePrice: 15000000, country: "ENG", img: "https://api.dicebear.com/7.x/initials/svg?seed=PS&backgroundColor=6366f1" },
+            { id: 38, name: "Jofra Archer", role: "Bowler", basePrice: 20000000, country: "ENG", img: "https://api.dicebear.com/7.x/initials/svg?seed=JA&backgroundColor=f59e0b" },
+            { id: 39, name: "Shreyas Iyer", role: "Batsman", basePrice: 15000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=SI&backgroundColor=10b981" },
+            { id: 40, name: "Rajat Patidar", role: "Batsman", basePrice: 10000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=RP&backgroundColor=eab308" },
+            { id: 41, name: "Rachin Ravindra", role: "All-Rounder", basePrice: 15000000, country: "NZ", img: "https://api.dicebear.com/7.x/initials/svg?seed=RR&backgroundColor=ec4899" },
+            { id: 42, name: "Daryl Mitchell", role: "All-Rounder", basePrice: 15000000, country: "NZ", img: "https://api.dicebear.com/7.x/initials/svg?seed=DM&backgroundColor=a855f7" },
+            { id: 43, name: "Marco Jansen", role: "All-Rounder", basePrice: 15000000, country: "RSA", img: "https://api.dicebear.com/7.x/initials/svg?seed=MJ&backgroundColor=14b8a6" },
+            { id: 44, name: "Anrich Nortje", role: "Bowler", basePrice: 15000000, country: "RSA", img: "https://api.dicebear.com/7.x/initials/svg?seed=AN&backgroundColor=ef4444" },
+            { id: 45, name: "Wanindu Hasaranga", role: "Bowler", basePrice: 15000000, country: "SL", img: "https://api.dicebear.com/7.x/initials/svg?seed=WH&backgroundColor=3b82f6" },
+            { id: 46, name: "Tim David", role: "All-Rounder", basePrice: 15000000, country: "AUS", img: "https://api.dicebear.com/7.x/initials/svg?seed=TD&backgroundColor=06b6d4" },
+            { id: 47, name: "Arshdeep Singh", role: "Bowler", basePrice: 15000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=AS&backgroundColor=8b5cf6" },
+            { id: 48, name: "Mohammed Shami", role: "Bowler", basePrice: 20000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=MS&backgroundColor=6366f1" },
+            { id: 49, name: "Ruturaj Gaikwad", role: "Batsman", basePrice: 15000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=RG&backgroundColor=f59e0b" },
+            { id: 50, name: "Kuldeep Yadav", role: "Bowler", basePrice: 15000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=KY&backgroundColor=10b981" },
+            { id: 51, name: "R. Ashwin", role: "All-Rounder", basePrice: 15000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=RA&backgroundColor=eab308" },
+            { id: 52, name: "Nitish Rana", role: "Batsman", basePrice: 10000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=NR&backgroundColor=ec4899" },
+            { id: 53, name: "Prithvi Shaw", role: "Batsman", basePrice: 15000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=PS&backgroundColor=a855f7" },
+            { id: 54, name: "Tristan Stubbs", role: "Wicket Keeper", basePrice: 10000000, country: "RSA", img: "https://api.dicebear.com/7.x/initials/svg?seed=TS&backgroundColor=14b8a6" },
+            { id: 55, name: "Jonny Bairstow", role: "Wicket Keeper", basePrice: 15000000, country: "ENG", img: "https://api.dicebear.com/7.x/initials/svg?seed=JB&backgroundColor=ef4444" },
+            { id: 56, name: "Moeen Ali", role: "All-Rounder", basePrice: 15000000, country: "ENG", img: "https://api.dicebear.com/7.x/initials/svg?seed=MA&backgroundColor=3b82f6" },
+            { id: 57, name: "Josh Hazlewood", role: "Bowler", basePrice: 15000000, country: "AUS", img: "https://api.dicebear.com/7.x/initials/svg?seed=JH&backgroundColor=06b6d4" },
+            { id: 58, name: "Devon Conway", role: "Batsman", basePrice: 10000000, country: "NZ", img: "https://api.dicebear.com/7.x/initials/svg?seed=DC&backgroundColor=8b5cf6" },
+            { id: 59, name: "Aiden Markram", role: "Batsman", basePrice: 15000000, country: "RSA", img: "https://api.dicebear.com/7.x/initials/svg?seed=AM&backgroundColor=6366f1" },
+            { id: 60, name: "David Miller", role: "Batsman", basePrice: 15000000, country: "RSA", img: "https://api.dicebear.com/7.x/initials/svg?seed=DM&backgroundColor=f59e0b" },
+            { id: 61, name: "Shivam Dube", role: "All-Rounder", basePrice: 15000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=SD&backgroundColor=10b981" },
+            { id: 62, name: "Ravi Bishnoi", role: "Bowler", basePrice: 10000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=RB&backgroundColor=eab308" },
+            { id: 63, name: "Harshal Patel", role: "Bowler", basePrice: 15000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=HP&backgroundColor=ec4899" },
+            { id: 64, name: "Washington Sundar", role: "All-Rounder", basePrice: 15000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=WS&backgroundColor=a855f7" },
+            { id: 65, name: "Deepak Chahar", role: "Bowler", basePrice: 15000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=DC&backgroundColor=14b8a6" },
+            { id: 66, name: "Shardul Thakur", role: "All-Rounder", basePrice: 15000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=ST&backgroundColor=ef4444" },
+            { id: 67, name: "Rahul Tewatia", role: "All-Rounder", basePrice: 10000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=RT&backgroundColor=3b82f6" },
+            { id: 68, name: "Varun Chakaravarthy", role: "Bowler", basePrice: 10000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=VC&backgroundColor=06b6d4" },
+            { id: 69, name: "Prasidh Krishna", role: "Bowler", basePrice: 10000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=PK&backgroundColor=8b5cf6" },
+            { id: 70, name: "Venkatesh Iyer", role: "All-Rounder", basePrice: 10000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=VI&backgroundColor=6366f1" },
+            { id: 71, name: "Navdeep Saini", role: "Bowler", basePrice: 10000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=NS&backgroundColor=f59e0b" },
+            { id: 72, name: "Mayank Agarwal", role: "Batsman", basePrice: 10000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=MA&backgroundColor=10b981" },
+            { id: 73, name: "Rahul Tripathi", role: "All-Rounder", basePrice: 10000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=RT&backgroundColor=eab308" },
+            { id: 74, name: "Sai Sudharsan", role: "Batsman", basePrice: 10000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=SS&backgroundColor=ec4899" },
+            { id: 75, name: "Tilak Varma", role: "Batsman", basePrice: 10000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=TV&backgroundColor=a855f7" },
+            { id: 76, name: "Nehal Wadhera", role: "Batsman", basePrice: 5000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=NW&backgroundColor=14b8a6" },
+            { id: 77, name: "Jitesh Sharma", role: "Wicket Keeper", basePrice: 5000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=JS&backgroundColor=ef4444" },
+            { id: 78, name: "Dhruv Jurel", role: "Wicket Keeper", basePrice: 5000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=DJ&backgroundColor=3b82f6" },
+            { id: 79, name: "Yash Dayal", role: "Bowler", basePrice: 5000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=YD&backgroundColor=06b6d4" },
+            { id: 80, name: "Mukesh Kumar", role: "Bowler", basePrice: 10000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=MK&backgroundColor=8b5cf6" },
+            { id: 81, name: "Avesh Khan", role: "Bowler", basePrice: 10000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=AK&backgroundColor=6366f1" },
+            { id: 82, name: "Khaleel Ahmed", role: "Bowler", basePrice: 10000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=KA&backgroundColor=f59e0b" },
+            { id: 83, name: "Deepak Hooda", role: "All-Rounder", basePrice: 10000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=DH&backgroundColor=10b981" },
+            { id: 84, name: "Krunal Pandya", role: "All-Rounder", basePrice: 15000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=KP&backgroundColor=eab308" },
+            { id: 85, name: "Umran Malik", role: "Bowler", basePrice: 10000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=UM&backgroundColor=ec4899" },
+            { id: 86, name: "T Natarajan", role: "Bowler", basePrice: 10000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=TN&backgroundColor=a855f7" },
+            { id: 87, name: "Bhuvneshwar Kumar", role: "Bowler", basePrice: 15000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=BK&backgroundColor=14b8a6" },
+            { id: 88, name: "Lockie Ferguson", role: "Bowler", basePrice: 15000000, country: "NZ", img: "https://api.dicebear.com/7.x/initials/svg?seed=LF&backgroundColor=ef4444" },
+            { id: 89, name: "Alzarri Ferguson", role: "Bowler", basePrice: 10000000, country: "WI", img: "https://api.dicebear.com/7.x/initials/svg?seed=AF&backgroundColor=3b82f6" },
+            { id: 90, name: "Kane Williamson", role: "Batsman", basePrice: 15000000, country: "NZ", img: "https://api.dicebear.com/7.x/initials/svg?seed=KW&backgroundColor=06b6d4" },
+            { id: 91, name: "Harry Brook", role: "Batsman", basePrice: 15000000, country: "ENG", img: "https://api.dicebear.com/7.x/initials/svg?seed=HB&backgroundColor=8b5cf6" },
+            { id: 92, name: "Ben Stokes", role: "All-Rounder", basePrice: 20000000, country: "ENG", img: "https://api.dicebear.com/7.x/initials/svg?seed=BS&backgroundColor=6366f1" },
+            { id: 93, name: "Jason Holder", role: "All-Rounder", basePrice: 10000000, country: "WI", img: "https://api.dicebear.com/7.x/initials/svg?seed=JH&backgroundColor=f59e0b" },
+            { id: 94, name: "Rovman Powell", role: "Batsman", basePrice: 10000000, country: "WI", img: "https://api.dicebear.com/7.x/initials/svg?seed=RP&backgroundColor=10b981" },
+            { id: 95, name: "Shimron Hetmyer", role: "Batsman", basePrice: 15000000, country: "WI", img: "https://api.dicebear.com/7.x/initials/svg?seed=SH&backgroundColor=eab308" },
+            { id: 96, name: "Kieron Pollard", role: "All-Rounder", basePrice: 15000000, country: "WI", img: "https://api.dicebear.com/7.x/initials/svg?seed=KP&backgroundColor=ec4899" },
+            { id: 97, name: "Romario Shepherd", role: "All-Rounder", basePrice: 5000000, country: "WI", img: "https://api.dicebear.com/7.x/initials/svg?seed=RS&backgroundColor=a855f7" },
+            { id: 98, name: "Kyle Mayers", role: "All-Rounder", basePrice: 5000000, country: "WI", img: "https://api.dicebear.com/7.x/initials/svg?seed=KM&backgroundColor=14b8a6" },
+            { id: 99, name: "Marcus Stoinis", role: "All-Rounder", basePrice: 15000000, country: "AUS", img: "https://api.dicebear.com/7.x/initials/svg?seed=MS&backgroundColor=ef4444" },
+            { id: 100, name: "Mitchell Marsh", role: "All-Rounder", basePrice: 15000000, country: "AUS", img: "https://api.dicebear.com/7.x/initials/svg?seed=MM&backgroundColor=3b82f6" },
+            // Players 101 to 200
+            { id: 101, name: "Matthew Wade", role: "Wicket Keeper", basePrice: 10000000, country: "AUS", img: "https://api.dicebear.com/7.x/initials/svg?seed=MW&backgroundColor=06b6d4" },
+            { id: 102, name: "Steven Smith", role: "All-Rounder", basePrice: 20000000, country: "ENG", img: "https://api.dicebear.com/7.x/initials/svg?seed=SS&backgroundColor=8b5cf6" },
+            { id: 103, name: "Spencer Johnson", role: "Bowler", basePrice: 10000000, country: "AUS", img: "https://api.dicebear.com/7.x/initials/svg?seed=SJ&backgroundColor=6366f1" },
+            { id: 104, name: "Nuwan Thushara", role: "Bowler", basePrice: 5000000, country: "SL", img: "https://api.dicebear.com/7.x/initials/svg?seed=NT&backgroundColor=f59e0b" },
+            { id: 105, name: "Maheesh Theekshana", role: "Bowler", basePrice: 10000000, country: "SL", img: "https://api.dicebear.com/7.x/initials/svg?seed=MT&backgroundColor=10b981" },
+            { id: 106, name: "Mujeeb Ur Rahman", role: "Bowler", basePrice: 10000000, country: "AFG", img: "https://api.dicebear.com/7.x/initials/svg?seed=MR&backgroundColor=eab308" },
+            { id: 107, name: "Naveen-ul-Haq", role: "Bowler", basePrice: 10000000, country: "AFG", img: "https://api.dicebear.com/7.x/initials/svg?seed=NH&backgroundColor=ec4899" },
+            { id: 108, name: "Fazalhaq Farooqi", role: "Bowler", basePrice: 5000000, country: "AFG", img: "https://api.dicebear.com/7.x/initials/svg?seed=FF&backgroundColor=a855f7" },
+            { id: 109, name: "Rahmanullah Gurbaz", role: "Wicket Keeper", basePrice: 5000000, country: "AFG", img: "https://api.dicebear.com/7.x/initials/svg?seed=RG&backgroundColor=14b8a6" },
+            { id: 110, name: "Azmatullah Omarzai", role: "All-Rounder", basePrice: 5000000, country: "AFG", img: "https://api.dicebear.com/7.x/initials/svg?seed=AO&backgroundColor=ef4444" },
+            { id: 111, name: "Lungi Ngidi", role: "Bowler", basePrice: 10000000, country: "RSA", img: "https://api.dicebear.com/7.x/initials/svg?seed=LN&backgroundColor=3b82f6" },
+            { id: 112, name: "Gerald Coetzee", role: "All-Rounder", basePrice: 10000000, country: "RSA", img: "https://api.dicebear.com/7.x/initials/svg?seed=GC&backgroundColor=06b6d4" },
+            { id: 113, name: "Donovan Ferreira", role: "Wicket Keeper", basePrice: 5000000, country: "RSA", img: "https://api.dicebear.com/7.x/initials/svg?seed=DF&backgroundColor=8b5cf6" },
+            { id: 114, name: "Dewald Brevis", role: "Wicket Keeper", basePrice: 5000000, country: "RSA", img: "https://api.dicebear.com/7.x/initials/svg?seed=DB&backgroundColor=6366f1" },
+            { id: 115, name: "Kusal Mendis", role: "Wicket Keeper", basePrice: 5000000, country: "SL", img: "https://api.dicebear.com/7.x/initials/svg?seed=KM&backgroundColor=f59e0b" },
+            { id: 116, name: "Shikhar Dhawan", role: "Batsman", basePrice: 15000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=SD&backgroundColor=10b981" },
+            { id: 117, name: "Manish Pandey", role: "Batsman", basePrice: 5000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=MP&backgroundColor=eab308" },
+            { id: 118, name: "Devdutt Padikkal", role: "Batsman", basePrice: 10000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=DP&backgroundColor=ec4899" },
+            { id: 119, name: "Abhishek Sharma", role: "Batsman", basePrice: 10000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=AS&backgroundColor=a855f7" },
+            { id: 120, name: "Ajinkya Rahane", role: "Batsman", basePrice: 10000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=AR&backgroundColor=14b8a6" },
+            { id: 121, name: "Shahrukh Khan", role: "Batsman", basePrice: 5000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=SK&backgroundColor=ef4444" },
+            { id: 122, name: "Abdul Samad", role: "Batsman", basePrice: 5000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=AS&backgroundColor=3b82f6" },
+            { id: 123, name: "Suyash Sharma", role: "Bowler", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=SS&backgroundColor=06b6d4" },
+            { id: 124, name: "Mahipal Lomror", role: "All-Rounder", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=ML&backgroundColor=8b5cf6" },
+            { id: 125, name: "Riyan Parag", role: "All-Rounder", basePrice: 5000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=RP&backgroundColor=6366f1" },
+            { id: 126, name: "Nandre Burger", role: "Bowler", basePrice: 5000000, country: "RSA", img: "https://api.dicebear.com/7.x/initials/svg?seed=NB&backgroundColor=f59e0b" },
+            { id: 127, name: "Rovman Powell", role: "Batsman", basePrice: 10000000, country: "WI", img: "https://api.dicebear.com/7.x/initials/svg?seed=RP&backgroundColor=10b981" },
+            { id: 128, name: "Gudakesh Motie", role: "Bowler", basePrice: 5000000, country: "WI", img: "https://api.dicebear.com/7.x/initials/svg?seed=GM&backgroundColor=eab308" },
+            { id: 129, name: "Dilshan Madushanka", role: "Bowler", basePrice: 5000000, country: "SL", img: "https://api.dicebear.com/7.x/initials/svg?seed=DM&backgroundColor=ec4899" },
+            { id: 130, name: "Will Jacks", role: "Batsman", basePrice: 10000000, country: "ENG", img: "https://api.dicebear.com/7.x/initials/svg?seed=WJ&backgroundColor=a855f7" },
+            { id: 131, name: "Reece Topley", role: "Bowler", basePrice: 10000000, country: "ENG", img: "https://api.dicebear.com/7.x/initials/svg?seed=RT&backgroundColor=14b8a6" },
+            { id: 132, name: "Jason Roy", role: "Batsman", basePrice: 15000000, country: "ENG", img: "https://api.dicebear.com/7.x/initials/svg?seed=JR&backgroundColor=ef4444" },
+            { id: 133, name: "Rilee Rossouw", role: "Batsman", basePrice: 10000000, country: "RSA", img: "https://api.dicebear.com/7.x/initials/svg?seed=RR&backgroundColor=3b82f6" },
+            { id: 134, name: "Anuj Rawat", role: "Wicket Keeper", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=AR&backgroundColor=06b6d4" },
+            { id: 135, name: "K.S. Bharat", role: "Wicket Keeper", basePrice: 5000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=KB&backgroundColor=8b5cf6" },
+            { id: 136, name: "Wriddhiman Saha", role: "Wicket Keeper", basePrice: 5000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=WS&backgroundColor=6366f1" },
+            { id: 137, name: "Piyush Chawla", role: "Bowler", basePrice: 5000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=PC&backgroundColor=f59e0b" },
+            { id: 138, name: "Amit Mishra", role: "Bowler", basePrice: 5000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=AM&backgroundColor=10b981" },
+            { id: 139, name: "Sandeep Sharma", role: "Bowler", basePrice: 5000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=SS&backgroundColor=eab308" },
+            { id: 140, name: "Mohit Sharma", role: "Bowler", basePrice: 5000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=MS&backgroundColor=ec4899" },
+            { id: 141, name: "Vijay Shankar", role: "All-Rounder", basePrice: 5000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=VS&backgroundColor=a855f7" },
+            { id: 142, name: "Akash Deep", role: "Bowler", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=AD&backgroundColor=14b8a6" },
+            { id: 143, name: "Chetan Sakariya", role: "Bowler", basePrice: 5000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=CS&backgroundColor=ef4444" },
+            { id: 144, name: "Kartik Tyagi", role: "Bowler", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=KT&backgroundColor=3b82f6" },
+            { id: 145, name: "Shivam Mavi", role: "Bowler", basePrice: 5000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=SM&backgroundColor=06b6d4" },
+            { id: 146, name: "Kamlesh Nagarkoti", role: "Bowler", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=KN&backgroundColor=8b5cf6" },
+            { id: 147, name: "Umesh Yadav", role: "Bowler", basePrice: 10000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=UY&backgroundColor=6366f1" },
+            { id: 148, name: "Ishant Sharma", role: "Bowler", basePrice: 5000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=IS&backgroundColor=f59e0b" },
+            { id: 149, name: "Siddarth Kaul", role: "Bowler", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=SK&backgroundColor=10b981" },
+            { id: 150, name: "Karn Sharma", role: "All-Rounder", basePrice: 5000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=KS&backgroundColor=eab308" },
+            { id: 151, name: "Shahbaz Ahmed", role: "All-Rounder", basePrice: 5000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=SA&backgroundColor=ec4899" },
+            { id: 152, name: "Lalit Yadav", role: "All-Rounder", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=LY&backgroundColor=a855f7" },
+            { id: 153, name: "Rishi Dhawan", role: "All-Rounder", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=RD&backgroundColor=14b8a6" },
+            { id: 154, name: "Prerak Mankad", role: "All-Rounder", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=PM&backgroundColor=ef4444" },
+            { id: 155, name: "Ayush Badoni", role: "Batsman", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=AB&backgroundColor=3b82f6" },
+            { id: 156, name: "Ramandeep Singh", role: "All-Rounder", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=RS&backgroundColor=06b6d4" },
+            { id: 157, name: "Hrithik Shokeen", role: "All-Rounder", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=HS&backgroundColor=8b5cf6" },
+            { id: 158, name: "Arjun Tendulkar", role: "All-Rounder", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=AT&backgroundColor=6366f1" },
+            { id: 159, name: "Kumar Kartikeya", role: "Bowler", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=KK&backgroundColor=f59e0b" },
+            { id: 160, name: "Mukesh Choudhary", role: "Bowler", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=MC&backgroundColor=10b981" },
+            { id: 161, name: "Simarjeet Singh", role: "Bowler", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=SS&backgroundColor=eab308" },
+            { id: 162, name: "Tushar Deshpande", role: "Bowler", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=TD&backgroundColor=ec4899" },
+            { id: 163, name: "Prashant Solanki", role: "Bowler", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=PS&backgroundColor=a855f7" },
+            { id: 164, name: "Kuldip Yadav", role: "Bowler", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=KY&backgroundColor=14b8a6" },
+            { id: 165, name: "Yash Dhull", role: "Batsman", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=YD&backgroundColor=ef4444" },
+            { id: 166, name: "Shaik Rasheed", role: "Batsman", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=SR&backgroundColor=3b82f6" },
+            { id: 167, name: "Abhinav Manohar", role: "Batsman", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=AM&backgroundColor=06b6d4" },
+            { id: 168, name: "Darshan Nalkande", role: "Bowler", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=DN&backgroundColor=8b5cf6" },
+            { id: 169, name: "Yash Thakur", role: "Bowler", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=YT&backgroundColor=6366f1" },
+            { id: 170, name: "Vaibhav Arora", role: "Bowler", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=VA&backgroundColor=f59e0b" },
+            { id: 171, name: "Naman Dhir", role: "All-Rounder", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=ND&backgroundColor=10b981" },
+            { id: 172, name: "Anshul Kamboj", role: "All-Rounder", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=AK&backgroundColor=eab308" },
+            { id: 173, name: "Harshit Rana", role: "Bowler", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=HR&backgroundColor=ec4899" },
+            { id: 174, name: "Sameer Rizvi", role: "Batsman", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=SR&backgroundColor=a855f7" },
+            { id: 175, name: "Shashank Singh", role: "All-Rounder", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=SS&backgroundColor=14b8a6" },
+            { id: 176, name: "Ashutosh Sharma", role: "Batsman", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=AS&backgroundColor=ef4444" },
+            { id: 177, name: "Aman Khan", role: "All-Rounder", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=AK&backgroundColor=3b82f6" },
+            { id: 178, name: "Atharva Taide", role: "Batsman", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=AT&backgroundColor=06b6d4" },
+            { id: 179, name: "Vivrant Sharma", role: "All-Rounder", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=VS&backgroundColor=8b5cf6" },
+            { id: 180, name: "Sanvir Singh", role: "All-Rounder", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=SS&backgroundColor=6366f1" },
+            { id: 181, name: "Nitish Reddy", role: "All-Rounder", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=NR&backgroundColor=f59e0b" },
+            { id: 182, name: "Vishnu Vinod", role: "Wicket Keeper", basePrice: 2000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=VV&backgroundColor=10b981" },
+            { id: 183, name: "Bhanuka Rajapaksa", role: "Batsman", basePrice: 5000000, country: "SL", img: "https://api.dicebear.com/7.x/initials/svg?seed=BR&backgroundColor=eab308" },
+            { id: 184, name: "Akeal Hosein", role: "Bowler", basePrice: 10000000, country: "WI", img: "https://api.dicebear.com/7.x/initials/svg?seed=AH&backgroundColor=ec4899" },
+            { id: 185, name: "Obed McCoy", role: "All-Rounder", basePrice: 5000000, country: "WI", img: "https://api.dicebear.com/7.x/initials/svg?seed=OM&backgroundColor=a855f7" },
+            { id: 186, name: "David Willey", role: "Bowler", basePrice: 10000000, country: "ENG", img: "https://api.dicebear.com/7.x/initials/svg?seed=DW&backgroundColor=14b8a6" },
+            { id: 187, name: "Chris Woakes", role: "All-Rounder", basePrice: 15000000, country: "ENG", img: "https://api.dicebear.com/7.x/initials/svg?seed=CW&backgroundColor=ef4444" },
+            { id: 188, name: "Mark Wood", role: "Bowler", basePrice: 15000000, country: "ENG", img: "https://api.dicebear.com/7.x/initials/svg?seed=MW&backgroundColor=3b82f6" },
+            { id: 189, name: "Adam Zampa", role: "Bowler", basePrice: 15000000, country: "AUS", img: "https://api.dicebear.com/7.x/initials/svg?seed=AZ&backgroundColor=06b6d4" },
+            { id: 190, name: "Riley Meredith", role: "Bowler", basePrice: 10000000, country: "AUS", img: "https://api.dicebear.com/7.x/initials/svg?seed=RM&backgroundColor=8b5cf6" },
+            { id: 191, name: "Josh Little", role: "Bowler", basePrice: 5000000, country: "IRE", img: "https://api.dicebear.com/7.x/initials/svg?seed=JL&backgroundColor=6366f1" },
+            { id: 192, name: "Sikandar Raza", role: "All-Rounder", basePrice: 5000000, country: "ZIM", img: "https://api.dicebear.com/7.x/initials/svg?seed=SR&backgroundColor=f59e0b" },
+            { id: 193, name: "Paul Stirling", role: "All-Rounder", basePrice: 5000000, country: "IRE", img: "https://api.dicebear.com/7.x/initials/svg?seed=PS&backgroundColor=10b981" },
+            { id: 194, name: "Mustafizur Rahman", role: "Bowler", basePrice: 10000000, country: "BAN", img: "https://api.dicebear.com/7.x/initials/svg?seed=MR&backgroundColor=eab308" },
+            { id: 195, name: "Liton Das", role: "Wicket Keeper", basePrice: 5000000, country: "BAN", img: "https://api.dicebear.com/7.x/initials/svg?seed=LD&backgroundColor=ec4899" },
+            { id: 196, name: "Shakib Al Hasan", role: "All-Rounder", basePrice: 15000000, country: "BAN", img: "https://api.dicebear.com/7.x/initials/svg?seed=SAH&backgroundColor=a855f7" },
+            { id: 197, name: "Tom Banton", role: "Batsman", basePrice: 10000000, country: "ENG", img: "https://api.dicebear.com/7.x/initials/svg?seed=TB&backgroundColor=14b8a6" },
+            { id: 198, name: "Harry Tector", role: "Batsman", basePrice: 5000000, country: "IRE", img: "https://api.dicebear.com/7.x/initials/svg?seed=HT&backgroundColor=ef4444" },
+            { id: 199, name: "Curtis Campher", role: "All-Rounder", basePrice: 5000000, country: "IRE", img: "https://api.dicebear.com/7.x/initials/svg?seed=CC&backgroundColor=3b82f6" },
+            { id: 200, name: "Josh Inglis", role: "Wicket Keeper", basePrice: 10000000, country: "AUS", img: "https://api.dicebear.com/7.x/initials/svg?seed=JI&backgroundColor=06b6d4" }
+        ];
+
+        const INITIAL_PURSE = 1000000000; // 100 Cr
+        const TIMER_DURATION = 20000; // 20 Seconds bidding phase
+
+        // --- Global State ---
+        let authReady = false;
+        let isLoginMode = true;
+        let user = null;
+        let teamName = "";
+        let hasJoinedIdentity = false;
+        
+        let currentRoomId = null;
+        let roomData = null;
+        let membersData = [];
+        
+        let unsubRoom = null;
+        let unsubMembers = null;
+        let hostTimerInterval = null;
+        let uiTimerInterval = null;
+        let toastTimeout = null;
+
+        // --- Utility Functions ---
+        const formatMoney = (val) => {
+            if (val === 0) return "0";
+            if (val >= 10000000) return (val / 10000000).toFixed(2) + " Cr";
+            if (val >= 100000) return (val / 100000).toFixed(2) + " L";
+            return "₹" + val.toLocaleString();
+        };
+
+        const generateRoomCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
+
+        const showToast = (msg, duration = 4000) => {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').innerText = msg;
+            toast.classList.remove('opacity-0');
+            toast.classList.add('opacity-100');
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0');
+            }, duration);
+        };
+
+        // --- AI Analysis Logic ---
+        const generateAIAnalysis = (teams) => {
+            let bestTeam = null;
+            let highestScore = -1;
+            
+            teams.forEach(team => {
+                let score = 0;
+                let batters = 0, bowlers = 0, ars = 0, wks = 0;
+                let topPlayer = null;
+
+                if (team.players && team.players.length > 0) {
+                    team.players.forEach(p => {
+                        let pScore = p.basePrice / 100000; 
+                        score += pScore;
+                        
+                        if (p.role === 'Batsman') batters++;
+                        else if (p.role === 'Bowler') bowlers++;
+                        else if (p.role === 'All-Rounder') ars++;
+                        else if (p.role === 'Wicket Keeper') wks++;
+
+                        if (!topPlayer || p.basePrice > topPlayer.basePrice) topPlayer = p;
+                    });
+
+                    // Balance Multipliers
+                    if (batters >= 3) score += 50;
+                    if (bowlers >= 3) score += 50;
+                    if (ars >= 1) score += 30;
+                    if (wks >= 1) score += 30;
+                }
+
+                team.aiScore = score;
+                if (score > highestScore) {
+                    highestScore = score;
+                    bestTeam = { ...team, topPlayer, batters, bowlers, ars, wks };
+                }
+            });
+
+            if (!bestTeam || !bestTeam.players || bestTeam.players.length === 0) {
+                return { winner: "No Clear Winner", text: "The auction ended without enough active bidding to analyze team strengths." };
+            }
+
+            let analysisText = `**${bestTeam.teamName}** has emerged as the strongest team with a balanced rating of **${highestScore}**! `;
+            if (bestTeam.topPlayer) {
+                analysisText += `Their squad is heavily anchored by the stellar signing of **${bestTeam.topPlayer.name}**. `;
+            }
+            analysisText += `They built an incredibly balanced squad securing **${bestTeam.batters} Batters**, **${bestTeam.bowlers} Bowlers**, and **${bestTeam.ars} All-Rounders** while managing their purse effectively!`;
+
+            return { winner: bestTeam.teamName, text: analysisText };
+        };
+
+        // --- Screen Navigation ---
+        const setScreen = (screenId) => {
+            document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        };
+
+        const updateViewState = () => {
+            if (!authReady) return setScreen('screen-loading');
+            if (!user) return setScreen('screen-auth');
+            if (!hasJoinedIdentity) return setScreen('screen-identity');
+            if (!currentRoomId) {
+                document.getElementById('welcome-text').innerText = `Welcome, ${teamName}`;
+                return setScreen('screen-home');
+            }
+
+            // In a room
+            if (roomData && roomData.status === 'waiting') {
+                setScreen('screen-lobby');
+                renderLobby();
+            } else if (roomData && (roomData.status === 'live' || roomData.status === 'finished')) {
+                setScreen('screen-auction');
+                renderAuctionHeader();
+                renderAuctionBoard();
+                renderTeams();
+                renderLogs();
+            }
+        };
+
+        // --- DOM Renderers ---
+        const renderLobby = () => {
+            document.getElementById('lobby-room-code').innerText = currentRoomId;
+            document.getElementById('lobby-member-count').innerText = membersData.length;
+            
+            const isHost = roomData.host === user.uid;
+            
+            if (isHost) {
+                document.getElementById('lobby-host-controls').classList.remove('hidden');
+                document.getElementById('lobby-waiting-text').classList.add('hidden');
+                document.getElementById('btn-start-auction').disabled = membersData.length < 2; // Strict requirement reverted to 2 teams
+            } else {
+                document.getElementById('lobby-host-controls').classList.add('hidden');
+                document.getElementById('lobby-waiting-text').classList.remove('hidden');
+            }
+
+            const listEl = document.getElementById('lobby-members-list');
+            listEl.innerHTML = membersData.map(m => `
+                <div class="bg-slate-800 rounded-xl p-4 flex items-center gap-3 border border-slate-700">
+                    <div class="w-10 h-10 rounded-full bg-indigo-900 flex items-center justify-center font-bold text-indigo-200">
+                        ${m.teamName.substring(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                        <p class="font-semibold">${m.teamName}</p>
+                        ${m.uid === roomData.host ? '<span class="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded">Host</span>' : ''}
+                    </div>
+                </div>
+            `).join('');
+        };
+
+        const renderAuctionHeader = () => {
+            const myTeam = membersData.find(m => m.uid === user.uid);
+            document.getElementById('header-room-code').innerText = currentRoomId;
+            if(myTeam) {
+                document.getElementById('header-team-name').innerText = myTeam.teamName;
+                document.getElementById('header-team-purse').innerText = formatMoney(myTeam.purse);
+            }
+        };
+
+        const renderAuctionBoard = () => {
+            const cardContainer = document.getElementById('auction-player-card');
+            const consoleContainer = document.getElementById('auction-bid-console');
+            
+            if (!cardContainer || !consoleContainer) return;
+            
+            try {
+                if (roomData.status === 'finished') {
+                    stopUITimer();
+                    consoleContainer.classList.add('hidden');
+                    
+                    cardContainer.innerHTML = `
+                        <div class="flex flex-col items-center justify-center text-center py-10">
+                            <i class="ph-fill ph-trophy text-yellow-400 text-6xl mb-6"></i>
+                            <h2 class="text-4xl font-black mb-4 text-white">Auction Finished!</h2>
+                            
+                            <div class="mt-6 w-full max-w-2xl bg-slate-950 p-8 rounded-xl border border-purple-500/50 shadow-[0_0_30px_rgba(168,85,247,0.15)] relative overflow-hidden">
+                                <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-purple-500 to-transparent opacity-50"></div>
+                                
+                                ${roomData.aiSummary ? `
+                                    <div class="flex flex-col items-center justify-center gap-3 mb-6">
+                                        <div class="p-3 bg-purple-500/20 rounded-full mb-2">
+                                            <i class="ph-fill ph-robot text-purple-400 text-4xl"></i>
+                                        </div>
+                                        <h3 class="text-2xl font-bold text-purple-300">AI Post-Auction Analysis</h3>
+                                    </div>
+                                    <h4 class="text-xl font-bold text-slate-300 mb-4">🏆 Winner: <span class="text-green-400 text-2xl ml-2">${roomData.aiSummary.winner}</span></h4>
+                                    <div class="bg-slate-900 p-4 rounded-lg border border-slate-800">
+                                        <p class="text-slate-300 leading-relaxed text-left text-sm md:text-base">${roomData.aiSummary.text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-bold">$1</strong>')}</p>
+                                    </div>
+                                ` : `
+                                    <div class="animate-pulse flex flex-col items-center py-10">
+                                        <i class="ph ph-spinner-gap animate-spin text-purple-400 text-5xl mb-4"></i>
+                                        <p class="text-purple-300 font-semibold text-lg">AI is analyzing squad balance and player stats...</p>
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                consoleContainer.classList.remove('hidden');
+
+                const safeIndex = (roomData.playerIndex >= 0 && roomData.playerIndex < PLAYERS.length) ? roomData.playerIndex : 0;
+                const currentPlayer = PLAYERS[safeIndex];
+                if (!currentPlayer) return;
+
+                const winningTeam = membersData.find(m => m.uid === roomData.highestBidder);
+
+                let bidPulseClass = roomData.currentBid > 0 ? "bg-green-500/5 animate-pulse" : "";
+                let currentBidStr = roomData.currentBid > 0 ? formatMoney(roomData.currentBid) : "No Bids";
+                let currentBidColor = roomData.currentBid > 0 ? "text-green-400" : "text-slate-600";
+                
+                let leaderInfo = "";
+                if (roomData.currentBid > 0 && winningTeam) {
+                    leaderInfo = `<p class="mt-2 text-indigo-300 text-sm font-medium flex items-center justify-center gap-2">
+                                    <i class="ph-fill ph-gavel"></i> Leading: ${winningTeam.teamName}
+                                  </p>`;
+                }
+
+                // 1. RENDER PLAYER CARD
+                cardContainer.innerHTML = `
+                    <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50"></div>
+                    
+                    <p class="text-xs text-slate-500 font-mono mb-2 uppercase tracking-widest">Player ${safeIndex + 1} of ${PLAYERS.length}</p>
+                    
+                    <div class="relative mb-6">
+                        <div class="w-40 h-40 rounded-full border-4 border-indigo-500/30 overflow-hidden shadow-[0_0_30px_rgba(79,70,229,0.2)] bg-slate-800 flex items-center justify-center">
+                            <img src="${currentPlayer.img}" alt="${currentPlayer.name}" class="w-full h-full object-cover" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiM0NzU1NjkiLz48L3N2Zz4='"/>
+                        </div>
+                        <div class="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-xs font-bold px-3 py-1 rounded-full border border-slate-900">
+                            ${currentPlayer.country}
+                        </div>
+                    </div>
+
+                    <h2 class="text-4xl font-black mb-2 text-center text-white">${currentPlayer.name}</h2>
+                    <div class="flex gap-3 mb-6">
+                        <span class="bg-slate-800 text-slate-300 px-4 py-1 rounded-full text-sm border border-slate-700">${currentPlayer.role}</span>
+                        <span class="bg-slate-800 text-amber-400 px-4 py-1 rounded-full text-sm border border-slate-700 font-medium">Base: ${formatMoney(currentPlayer.basePrice)}</span>
+                    </div>
+
+                    <div class="w-full max-w-md bg-slate-950 rounded-xl p-6 border border-slate-800 text-center relative overflow-hidden">
+                        ${roomData.currentBid > 0 ? `<div class="absolute top-0 left-0 w-full h-full ${bidPulseClass} rounded-xl"></div>` : ''}
+                        <p class="text-sm text-slate-400 mb-1">Current Bid</p>
+                        <p class="text-5xl font-black ${currentBidColor}">${currentBidStr}</p>
+                        ${leaderInfo}
+                    </div>
+                `;
+
+                // 2. RENDER STICKY BID CONSOLE
+                let bidControls = "";
+                if (roomData.saleStatus) {
+                    let statusColor = roomData.saleStatus === 'sold' ? 'text-green-400' : 'text-red-400';
+                    let statusBg = roomData.saleStatus === 'sold' ? 'bg-green-500/20 border-green-500/50' : 'bg-red-500/20 border-red-500/50';
+                    bidControls = `
+                        <div class="w-full flex-1 py-3 px-4 rounded-xl border-4 ${statusBg} flex flex-col items-center justify-center animate-pulse">
+                            <h2 class="text-3xl md:text-4xl font-black uppercase tracking-widest ${statusColor} mb-1">${roomData.saleStatus}!</h2>
+                            <p class="text-white font-bold text-sm md:text-md text-center">${roomData.saleMessage}</p>
+                        </div>
+                    `;
+                } else if (roomData.currentBid === 0) {
+                    bidControls = `
+                        <div class="flex-1 w-full">
+                            <button class="action-bid-btn w-full bg-indigo-600 hover:bg-indigo-500 border border-indigo-400 py-4 px-6 rounded-xl font-bold transition-all text-xl shadow-[0_0_20px_rgba(79,70,229,0.5)] text-white flex items-center justify-center gap-2" data-amount="0">
+                                <i class="ph-bold ph-gavel text-3xl"></i> Start Bid at ${formatMoney(currentPlayer.basePrice)}
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    bidControls = `
+                        <div class="flex-1 grid grid-cols-2 lg:grid-cols-4 gap-3 w-full">
+                            <button class="action-bid-btn bg-slate-800 hover:bg-slate-700 border border-slate-600 p-3 rounded-xl font-bold transition-all text-sm md:text-base hover:border-indigo-400 text-white shadow-sm" data-amount="1000000">+ 10 Lakhs</button>
+                            <button class="action-bid-btn bg-slate-800 hover:bg-slate-700 border border-slate-600 p-3 rounded-xl font-bold transition-all text-sm md:text-base hover:border-indigo-400 text-white shadow-sm" data-amount="2000000">+ 20 Lakhs</button>
+                            <button class="action-bid-btn bg-slate-800 hover:bg-slate-700 border border-slate-600 p-3 rounded-xl font-bold transition-all text-sm md:text-base hover:border-indigo-400 text-white shadow-sm" data-amount="5000000">+ 50 Lakhs</button>
+                            <button class="action-bid-btn bg-indigo-600 hover:bg-indigo-500 border border-indigo-400 p-3 rounded-xl font-bold transition-all text-sm md:text-base shadow-[0_0_15px_rgba(79,70,229,0.4)] text-white" data-amount="10000000">+ 1 Crore</button>
+                        </div>
+                    `;
+                }
+
+                consoleContainer.innerHTML = `
+                    <div class="flex flex-col items-center justify-center shrink-0 w-24">
+                        <div id="ui-timer" class="relative flex items-center justify-center w-20 h-20 rounded-full border-4 border-indigo-500 text-indigo-400 bg-slate-900 shadow-inner">
+                            <div class="text-center">
+                                <p id="ui-timer-text" class="text-3xl font-black">0</p>
+                            </div>
+                        </div>
+                    </div>
+                    ${bidControls}
+                `;
+                
+                startUITimer(roomData.timerEndsAt);
+            } catch (e) {
+                console.error("Board Render Error:", e);
+                cardContainer.innerHTML = `<div class="text-red-400 p-4">UI Error: Could not render board correctly.</div>`;
+            }
+        };
+
+        const renderTeams = () => {
+            document.getElementById('auction-teams-count').innerText = membersData.length;
+            const container = document.getElementById('auction-teams-list');
+            
+            container.innerHTML = membersData.map(m => {
+                const isLeading = roomData && m.uid === roomData.highestBidder;
+                const borderClass = isLeading ? 'bg-indigo-900/40 border-indigo-500/50' : 'bg-slate-950 border-slate-800';
+                
+                let playersHtml = (!m.players || m.players.length === 0) 
+                    ? `<span class="text-xs text-slate-600 italic">No players yet</span>`
+                    : m.players.map(p => `<span class="text-[10px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700 truncate max-w-full">${p.name.split(' ')[0]}</span>`).join('');
+
+                return `
+                <div class="p-3 rounded-xl border ${borderClass} transition-colors">
+                    <div class="flex justify-between items-start mb-2">
+                        <p class="font-semibold text-sm truncate pr-2 flex items-center gap-1">
+                            ${m.teamName} <span class="text-[10px] text-slate-500">(${m.players?.length||0}/11)</span>
+                        </p>
+                        <p class="font-bold text-green-400 text-xs shrink-0">${formatMoney(m.purse)}</p>
+                    </div>
+                    <div class="flex flex-wrap gap-1">
+                        ${playersHtml}
+                    </div>
+                </div>
+                `;
+            }).join('');
+        };
+
+        const renderLogs = () => {
+            const container = document.getElementById('auction-logs-list');
+            const logs = [...(roomData.logs || [])].reverse().slice(0, 30);
+            
+            container.innerHTML = logs.map(log => {
+                const isSystem = log.sender === 'System';
+                let senderColor = isSystem ? 'text-amber-400' : 'text-indigo-300';
+                let textColor = isSystem ? 'text-slate-300 italic' : 'text-slate-100';
+                
+                let bgClass = '';
+                if (isSystem) {
+                    if (log.text.includes('UNSOLD')) {
+                        bgClass = 'bg-red-500/10 border border-red-500/30 p-2 rounded my-1';
+                        textColor = 'text-red-300 font-bold';
+                        senderColor = 'text-red-400';
+                    }
+                    else if (log.text.includes('SOLD')) {
+                        bgClass = 'bg-green-500/10 border border-green-500/30 p-2 rounded my-1';
+                        textColor = 'text-green-300 font-bold';
+                        senderColor = 'text-green-400';
+                    }
+                }
+
+                return `
+                <div class="text-sm ${bgClass}">
+                    <span class="font-semibold mr-2 ${senderColor}">${log.sender}:</span>
+                    <span class="${textColor}">${log.text}</span>
+                </div>
+                `;
+            }).join('');
+        };
+
+        // --- Timers ---
+        const startUITimer = (endsAt) => {
+            stopUITimer();
+            const updateUI = () => {
+                const timerEl = document.getElementById('ui-timer');
+                const textEl = document.getElementById('ui-timer-text');
+                if(!timerEl || !textEl) return;
+
+                const remaining = Math.max(0, Math.floor((endsAt - Date.now()) / 1000));
+                textEl.innerText = remaining;
+                
+                if (roomData && roomData.saleStatus) {
+                    timerEl.classList.remove('border-red-500', 'text-red-500', 'animate-pulse');
+                    timerEl.classList.add('border-indigo-500', 'text-indigo-400');
+                    return;
+                }
+
+                if (remaining > 0 && remaining <= 5) {
+                    timerEl.classList.remove('border-indigo-500', 'text-indigo-400');
+                    timerEl.classList.add('border-red-500', 'text-red-500', 'animate-pulse');
+                } else {
+                    timerEl.classList.remove('border-red-500', 'text-red-500', 'animate-pulse');
+                    timerEl.classList.add('border-indigo-500', 'text-indigo-400');
+                }
+            };
+            
+            updateUI();
+            uiTimerInterval = setInterval(updateUI, 500);
+        };
+
+        const stopUITimer = () => {
+            if (uiTimerInterval) {
+                clearInterval(uiTimerInterval);
+                uiTimerInterval = null;
+            }
+        };
+
+        // --- Core Business Logic (Host ONLY) ---
+        let lastProcessedTime = 0;
+        const startHostLogic = () => {
+            if (hostTimerInterval) clearInterval(hostTimerInterval);
+            
+            hostTimerInterval = setInterval(() => {
+                if (!roomData || roomData.status !== 'live' || roomData.host !== user?.uid) return;
+
+                const timeRemaining = roomData.timerEndsAt - Date.now();
+                if (timeRemaining <= 0 && (Date.now() - lastProcessedTime > 2000)) {
+                    lastProcessedTime = Date.now();
+                    
+                    if (roomData.saleStatus) {
+                        moveToNextPlayer();
+                    } else {
+                        processPlayerSale();
+                    }
+                }
+            }, 500);
+        };
+
+        const stopHostLogic = () => {
+            if (hostTimerInterval) {
+                clearInterval(hostTimerInterval);
+                hostTimerInterval = null;
+            }
+        };
+        
+        const addChatLog = async (roomId, message) => {
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+            await updateDoc(roomRef, {
+                logs: arrayUnion({ text: message, sender: teamName || 'System', timestamp: Date.now() })
+            });
+        };
+
+        const leaveRoom = () => {
+            if(unsubRoom) { unsubRoom(); unsubRoom = null; }
+            if(unsubMembers) { unsubMembers(); unsubMembers = null; }
+            stopHostLogic();
+            stopUITimer();
+            currentRoomId = null;
+            roomData = null;
+            membersData = [];
+            updateViewState();
+        };
+
+        // Attached to window specifically so Event Delegation inside HTML can access it
+        window.placeBid = async (addedAmount) => {
+            if (!roomData || roomData.status !== 'live') return;
+            if (roomData.saleStatus) return; 
+            
+            const currentPlayer = PLAYERS[roomData.playerIndex];
+            if(!currentPlayer) return;
+
+            let newBid = roomData.currentBid === 0 ? currentPlayer.basePrice : roomData.currentBid + addedAmount;
+            
+            const myTeam = membersData.find(m => m.uid === user.uid);
+            if (!myTeam) return;
+
+            if (myTeam.purse < newBid) {
+                showToast("Insufficient funds!");
+                return;
+            }
+
+            if (roomData.highestBidder === user.uid) {
+                showToast("You are already the highest bidder!");
+                return;
+            }
+
+            try {
+                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
+                await updateDoc(roomRef, {
+                    currentBid: newBid,
+                    highestBidder: user.uid,
+                    timerEndsAt: Date.now() + TIMER_DURATION 
+                });
+                
+                await addChatLog(currentRoomId, `Bid ${formatMoney(newBid)} for ${currentPlayer.name}`);
+            } catch(e) {
+                console.error(e);
+            }
+        };
+
+        const processPlayerSale = async () => {
+            try {
+                const currentPlayer = PLAYERS[roomData.playerIndex];
+                if (!currentPlayer) return;
+
+                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
+                let updatedMembersCopy = JSON.parse(JSON.stringify(membersData));
+                
+                let sStatus = 'unsold';
+                let sMessage = `${currentPlayer.name} went UNSOLD!`;
+                
+                if (roomData.highestBidder) {
+                    const winnerIdx = updatedMembersCopy.findIndex(m => m.uid === roomData.highestBidder);
+                    if (winnerIdx !== -1) {
+                        updatedMembersCopy[winnerIdx].purse -= roomData.currentBid;
+                        if(!updatedMembersCopy[winnerIdx].players) updatedMembersCopy[winnerIdx].players = [];
+                        updatedMembersCopy[winnerIdx].players.push(currentPlayer);
+
+                        const memberRef = doc(db, 'artifacts', appId, 'public', 'data', 'roomMembers', `${currentRoomId}_${roomData.highestBidder}`);
+                        await updateDoc(memberRef, {
+                            purse: updatedMembersCopy[winnerIdx].purse,
+                            players: arrayUnion(currentPlayer)
+                        });
+                        
+                        sStatus = 'sold';
+                        sMessage = `SOLD to ${updatedMembersCopy[winnerIdx].teamName} for ${formatMoney(roomData.currentBid)}`;
+                        await addChatLog(currentRoomId, `✅ ${currentPlayer.name} ${sMessage}!`);
+                    }
+                } else {
+                    await addChatLog(currentRoomId, `❌ ${sMessage}`);
+                }
+
+                await updateDoc(roomRef, { 
+                    saleStatus: sStatus,
+                    saleMessage: sMessage,
+                    timerEndsAt: Date.now() + 5000 
+                });
+            } catch (err) {
+                console.error("Error processing sale", err);
+            }
+        };
+
+        const moveToNextPlayer = async () => {
+            try {
+                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
+                
+                const allTeamsHave11 = membersData.length > 0 && membersData.every(m => m.players && m.players.length >= 11);
+                const noMorePlayers = roomData.playerIndex + 1 >= PLAYERS.length;
+
+                if (allTeamsHave11 || noMorePlayers) {
+                    const analysis = generateAIAnalysis(membersData);
+                    await updateDoc(roomRef, { 
+                        status: 'finished',
+                        aiSummary: analysis,
+                        saleStatus: null
+                    });
+                    await addChatLog(currentRoomId, `Auction Finished! AI has analyzed the final squads.`);
+                } else {
+                    await updateDoc(roomRef, {
+                        playerIndex: roomData.playerIndex + 1,
+                        currentBid: 0,
+                        highestBidder: null,
+                        saleStatus: null,
+                        timerEndsAt: Date.now() + TIMER_DURATION
+                    });
+                }
+            } catch (err) {
+                console.error("Error moving next", err);
+            }
+        };
+
+        const listenToRoom = (roomId) => {
+            if(unsubRoom) unsubRoom();
+            if(unsubMembers) unsubMembers();
+
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+            unsubRoom = onSnapshot(roomRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const newData = { id: docSnap.id, ...docSnap.data() };
+                    roomData = newData;
+                    
+                    if (roomData.status === 'live' && roomData.host === user.uid && !hostTimerInterval) {
+                        startHostLogic();
+                    } else if (roomData.status !== 'live') {
+                        stopHostLogic();
+                    }
+
+                    updateViewState();
+                } else {
+                    showToast("Room was closed.");
+                    leaveRoom();
+                }
+            }, (err) => console.error("Room sync error", err));
+
+            const membersRef = collection(db, 'artifacts', appId, 'public', 'data', 'roomMembers');
+            unsubMembers = onSnapshot(membersRef, (snapshot) => {
+                const allMembers = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                membersData = allMembers.filter(m => m.roomId === roomId);
+                updateViewState();
+            }, (err) => console.error("Members sync error", err));
+        };
+
+        const createRoom = async (isPublic = false) => {
+            if (!user) return;
+            const code = generateRoomCode();
+            
+            try {
+                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code);
+                await setDoc(roomRef, {
+                    status: 'waiting',
+                    host: user.uid,
+                    createdAt: Date.now(),
+                    isPublic,
+                    playerIndex: 0,
+                    currentBid: 0,
+                    highestBidder: null,
+                    saleStatus: null,
+                    timerEndsAt: 0,
+                    logs: []
+                });
+
+                const memberRef = doc(db, 'artifacts', appId, 'public', 'data', 'roomMembers', `${code}_${user.uid}`);
+                await setDoc(memberRef, {
+                    roomId: code,
+                    uid: user.uid,
+                    teamName,
+                    purse: INITIAL_PURSE,
+                    players: []
+                });
+
+                currentRoomId = code;
+                showToast("Room Created Successfully!");
+                listenToRoom(code);
+            } catch (err) {
+                console.error(err);
+                showToast("Failed to create room.");
+            }
+        };
+
+        const joinRoom = async (code) => {
+            if (!user || !code) return;
+            code = code.toUpperCase();
+
+            try {
+                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code);
+                const roomSnap = await getDoc(roomRef);
+                
+                if (!roomSnap.exists()) {
+                    showToast("Room not found!");
+                    return;
+                }
+                
+                if (roomSnap.data().status === 'finished') {
+                    showToast("Auction already finished in this room.");
+                    return;
+                }
+
+                const memberRef = doc(db, 'artifacts', appId, 'public', 'data', 'roomMembers', `${code}_${user.uid}`);
+                const memberSnap = await getDoc(memberRef);
+                
+                if (!memberSnap.exists()) {
+                    await setDoc(memberRef, {
+                        roomId: code,
+                        uid: user.uid,
+                        teamName,
+                        purse: INITIAL_PURSE,
+                        players: []
+                    });
+                    await updateDoc(roomRef, {
+                        logs: arrayUnion({ text: `${teamName} joined the room.`, sender: 'System', timestamp: Date.now() })
+                    });
+                }
+
+                currentRoomId = code;
+                listenToRoom(code);
+            } catch (err) {
+                console.error(err);
+                showToast("Error joining room.");
+            }
+        };
+
+        // --- Init & Event Listeners ---
+        
+        const initAuth = async () => {
+            try {
+                await setPersistence(auth, browserSessionPersistence);
+            } catch (err) {
+                console.error("Auth persistence error", err);
+            }
+
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                try {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } catch(err) {
+                    console.error("Auto token auth failed", err);
+                }
+            }
+        };
+
+        onAuthStateChanged(auth, (u) => {
+            authReady = true;
+            user = u;
+            updateViewState();
+        });
+
+        initAuth();
+
+        // Global Action Listener for dynamically generated bid buttons
+        document.addEventListener('click', (e) => {
+            const bidBtn = e.target.closest('.action-bid-btn');
+            if (bidBtn && typeof window.placeBid === 'function') {
+                const amountStr = bidBtn.getAttribute('data-amount');
+                if (amountStr !== null) {
+                    window.placeBid(parseInt(amountStr, 10));
+                }
+            }
+        });
+
+        document.getElementById('auth-toggle-btn').addEventListener('click', () => {
+            isLoginMode = !isLoginMode;
+            document.getElementById('auth-title').innerText = isLoginMode ? "Login" : "Register";
+            document.getElementById('auth-submit-btn').innerText = isLoginMode ? "Login" : "Register";
+            document.getElementById('auth-toggle-btn').innerText = isLoginMode ? "Need an account? Register here" : "Already have an account? Login here";
+        });
+
+        document.getElementById('auth-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('auth-email').value;
+            const password = document.getElementById('auth-password').value;
+            try {
+                if (isLoginMode) {
+                    await signInWithEmailAndPassword(auth, email, password);
+                    showToast("Logged in successfully!");
+                } else {
+                    await createUserWithEmailAndPassword(auth, email, password);
+                    showToast("Registered successfully!");
+                }
+            } catch (err) {
+                console.error(err);
+                showToast(err.message.replace("Firebase: ", "") || "Authentication failed.");
+            }
+        });
+
+        document.getElementById('auth-guest-btn').addEventListener('click', async () => {
+            try {
+                await signInAnonymously(auth);
+                showToast("Logged in as Guest");
+            } catch (err) {
+                console.error(err);
+                showToast("Guest login failed.");
+            }
+        });
+
+        document.querySelectorAll('.btn-logout').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                await signOut(auth);
+                hasJoinedIdentity = false;
+                teamName = "";
+                leaveRoom();
+            });
+        });
+
+        document.getElementById('identity-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const val = document.getElementById('team-name-input').value;
+            if (val.trim().length < 3) {
+                showToast("Team name must be at least 3 characters.");
+                return;
+            }
+            teamName = val;
+            hasJoinedIdentity = true;
+            updateViewState();
+        });
+
+        document.getElementById('btn-create-room').addEventListener('click', () => createRoom(false));
+        
+        document.getElementById('btn-join-random').addEventListener('click', async () => {
+            try {
+                const roomsRef = collection(db, 'artifacts', appId, 'public', 'data', 'rooms');
+                const snap = await getDocs(roomsRef);
+                const availableRooms = snap.docs.filter(d => 
+                    d.data().isPublic && d.data().status === 'waiting'
+                );
+
+                if (availableRooms.length > 0) {
+                    joinRoom(availableRooms[0].id);
+                } else {
+                    showToast("No public rooms available. Creating a new one...");
+                    createRoom(true);
+                }
+            } catch (err) {
+                console.error(err);
+                showToast("Error finding random room.");
+            }
+        });
+
+        document.getElementById('form-join-code').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const code = document.getElementById('room-code-input').value;
+            joinRoom(code);
+        });
+
+        document.querySelectorAll('.btn-leave-room').forEach(btn => {
+            btn.addEventListener('click', leaveRoom);
+        });
+
+        document.getElementById('btn-start-auction').addEventListener('click', async () => {
+            if (membersData.length < 2) {
+                showToast("Need at least 2 teams to start.");
+                return;
+            }
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
+            await updateDoc(roomRef, {
+                status: 'live',
+                timerEndsAt: Date.now() + TIMER_DURATION,
+                logs: arrayUnion({ text: `Auction Started!`, sender: 'System', timestamp: Date.now() })
+            });
+        });
+
+        document.getElementById('chat-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const input = document.getElementById('chat-input');
+            const msg = input.value.trim();
+            if (!msg) return;
+            addChatLog(currentRoomId, msg);
+            input.value = "";
+        });
+
+    </script>
+</body>
+</html
