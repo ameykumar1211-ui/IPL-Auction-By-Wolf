@@ -1,0 +1,1806 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>IPL Auction Simulator - Luxury Edition</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Phosphor Icons for UI -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Google Fonts for Luxury Aesthetic -->
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Base Themes */
+        :root {
+            --gold: #d4af37;
+            --gold-light: #f3e5ab;
+            --gold-dark: #aa8529;
+            --glass-bg: rgba(17, 17, 22, 0.7);
+            --glass-border: rgba(212, 175, 55, 0.2);
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top, #1a1a24 0%, #0a0a0f 100%);
+            color: #f8fafc;
+            overscroll-behavior-y: none;
+        }
+
+        h1, h2, h3, .font-serif { font-family: 'Cinzel', serif; }
+        
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(212, 175, 55, 0.3); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(212, 175, 55, 0.6); }
+        
+        .screen { display: none; }
+        .screen.active { display: flex; }
+
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+        }
+
+        .text-gold-gradient {
+            background: linear-gradient(to right, var(--gold-light), var(--gold), var(--gold-dark));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        input, select, textarea { font-size: 16px !important; }
+    </style>
+    
+    <script>
+        window.addEventListener('error', function(e) {
+            if (e.message === 'Script error.' || (e.filename && !e.filename.includes(window.location.hostname) && e.filename !== '')) {
+                return; 
+            }
+            const loadingScreen = document.getElementById('screen-loading');
+            if(loadingScreen && window.getComputedStyle(loadingScreen).display !== 'none') {
+                loadingScreen.innerHTML = `
+                    <div class="text-center p-6 glass-panel rounded-2xl border border-red-500/50 max-w-md mx-auto mt-20">
+                        <i class="ph-fill ph-warning-circle text-red-500 text-5xl mb-4"></i>
+                        <h2 class="text-xl font-bold text-white mb-2 font-serif">System Error</h2>
+                        <p class="text-slate-400 text-sm mb-4">${e.message || 'Initialization failed.'}</p>
+                    </div>`;
+            }
+        });
+    </script>
+</head>
+<body class="min-h-screen overflow-x-hidden flex flex-col selection:bg-[#d4af37] selection:text-black">
+
+    <!-- Guest Warning Modal -->
+    <div id="guest-warning-modal" class="fixed inset-0 z-[60] flex items-center justify-center hidden bg-black/80 backdrop-blur-sm transition-opacity">
+        <div class="glass-panel p-8 rounded-3xl w-full max-w-sm text-center border border-[#d4af37]/40 shadow-[0_0_50px_rgba(212,175,55,0.2)] relative overflow-hidden">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-[#d4af37] rounded-full blur-[60px] opacity-10 pointer-events-none"></div>
+            <div class="w-16 h-16 bg-gradient-to-br from-red-500/20 to-[#d4af37]/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-[#d4af37]/30">
+                <i class="ph-fill ph-warning text-[#d4af37] text-3xl"></i>
+            </div>
+            <h3 class="text-xl font-black text-white mb-2 font-serif tracking-widest uppercase text-gold-gradient">Guest Access</h3>
+            <p class="text-slate-400 text-sm mb-6 tracking-wide leading-relaxed">Your franchise identity, leaderboard level, and victories <strong class="text-red-400">will not be stored permanently</strong>. They will be lost upon closing the simulator.</p>
+            
+            <div class="flex gap-4">
+                <button id="btn-cancel-guest" class="flex-1 py-3 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 transition-all uppercase tracking-widest text-xs font-bold active:scale-95">Cancel</button>
+                <button id="btn-confirm-guest" class="flex-1 bg-gradient-to-r from-[#aa8529] to-[#d4af37] hover:from-[#d4af37] hover:to-[#f3e5ab] text-black py-3 rounded-xl font-bold transition-all uppercase tracking-widest text-xs shadow-[0_0_15px_rgba(212,175,55,0.4)] active:scale-95">Proceed</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Privacy Consent Banner -->
+    <div id="consent-banner" class="fixed bottom-0 left-0 w-full z-50 transition-transform duration-700 translate-y-full">
+        <div class="glass-panel border-t border-[#d4af37]/40 p-4 md:p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.8)] relative overflow-hidden backdrop-blur-2xl bg-[#0a0a0f]/90">
+            <div class="absolute top-0 right-0 w-64 h-64 bg-[#d4af37] rounded-full blur-[100px] opacity-10 pointer-events-none"></div>
+            <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 relative z-10">
+                <div class="flex items-start gap-4">
+                    <div class="w-10 h-10 rounded-full bg-[#d4af37]/10 flex items-center justify-center shrink-0 border border-[#d4af37]/30 mt-1">
+                        <i class="ph-fill ph-cookie text-[#d4af37] text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-white font-bold font-serif tracking-widest uppercase mb-1">Data & Privacy</h3>
+                        <p class="text-slate-400 text-xs md:text-sm tracking-wide">We use cookies to personalize your premium experience and deliver relevant advertisements. By proceeding, you authorize our data protocols.</p>
+                    </div>
+                </div>
+                <div class="flex gap-3 w-full md:w-auto shrink-0">
+                    <button id="btn-accept-consent" class="flex-1 md:flex-none bg-gradient-to-r from-[#aa8529] to-[#d4af37] text-black font-black px-6 py-3 rounded-xl hover:from-[#d4af37] hover:to-[#f3e5ab] transition-all shadow-[0_0_15px_rgba(212,175,55,0.4)] uppercase tracking-widest text-sm active:scale-95">Accept & Enter</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-6 left-1/2 -translate-x-1/2 glass-panel border border-[#d4af37]/50 text-white px-6 py-4 rounded-full shadow-2xl flex items-center gap-3 z-[100] transition-all duration-500 opacity-0 pointer-events-none text-sm md:text-base font-semibold tracking-wide">
+        <i class="ph-fill ph-bell-ringing text-[#d4af37] text-xl"></i>
+        <span id="toast-message"></span>
+    </div>
+
+    <!-- Screen 1: Loading -->
+    <div id="screen-loading" class="screen active min-h-screen flex-col items-center justify-center w-full relative z-10">
+        <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-10 pointer-events-none"></div>
+        <div class="animate-pulse flex flex-col items-center glass-panel p-10 rounded-full border border-[#d4af37]/30 shadow-[0_0_50px_rgba(212,175,55,0.1)]">
+            <i class="ph-fill ph-crown text-[#d4af37] text-6xl mb-4 drop-shadow-[0_0_15px_rgba(212,175,55,0.5)]"></i>
+            <h2 class="text-2xl font-bold font-serif tracking-widest text-[#d4af37] uppercase">Connecting</h2>
+        </div>
+    </div>
+
+    <!-- Screen 1.5: Auth -->
+    <div id="screen-auth" class="screen min-h-screen flex-col items-center justify-start pt-8 pb-12 p-4 w-full relative z-10 overflow-y-auto">
+        <div class="glass-panel p-6 md:p-10 rounded-3xl w-full max-w-md relative overflow-hidden mt-auto mb-auto shrink-0">
+            <div class="absolute -top-20 -right-20 w-40 h-40 bg-[#d4af37] rounded-full blur-[80px] opacity-20 pointer-events-none"></div>
+            
+            <!-- TOP AD -->
+            <div class="w-full flex justify-center mb-8 relative z-10 rounded-xl overflow-hidden shadow-lg bg-black/50 border border-[#d4af37]/30 p-2 min-h-[50px]">
+                <script>
+                  atOptions = {
+                    'key' : '93887ceed9d36c96533170c6c4300c23',
+                    'format' : 'iframe',
+                    'height' : 250,
+                    'width' : 300,
+                    'params' : {}
+                  };
+                </script>
+                <script src="https://www.highperformanceformat.com/93887ceed9d36c96533170c6c4300c23/invoke.js"></script>
+            </div>
+
+            <div class="text-center mb-6 relative z-10">
+                <div class="w-20 h-20 glass-panel rounded-full flex items-center justify-center mx-auto mb-6 border border-[#d4af37]/40">
+                    <i class="ph-fill ph-shield-check text-[#d4af37] text-4xl"></i>
+                </div>
+                <h2 id="auth-title" class="text-3xl font-black text-gold-gradient font-serif tracking-wider uppercase">Authentication</h2>
+                <p class="text-slate-400 text-sm mt-3 tracking-wide">Access the Premium Auction Network</p>
+            </div>
+
+            <form id="auth-form" class="space-y-5 relative z-10">
+                <div>
+                    <input type="email" id="auth-email" placeholder="Email Address" required class="w-full bg-black/40 border border-slate-700 text-white px-5 py-4 rounded-xl focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] transition-all placeholder:text-slate-600 tracking-wide" />
+                </div>
+                <div>
+                    <input type="password" id="auth-password" placeholder="Password" required class="w-full bg-black/40 border border-slate-700 text-white px-5 py-4 rounded-xl focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] transition-all placeholder:text-slate-600 tracking-wide" />
+                </div>
+                <button type="submit" id="auth-submit-btn" class="w-full bg-gradient-to-r from-[#aa8529] to-[#d4af37] hover:from-[#d4af37] hover:to-[#f3e5ab] text-black font-bold py-4 rounded-xl transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)] hover:shadow-[0_0_30px_rgba(212,175,55,0.5)] tracking-widest uppercase mt-2 active:scale-95">Authenticate</button>
+            </form>
+            
+            <div class="mt-8 flex flex-col gap-4 relative z-10">
+                <button id="auth-toggle-btn" class="text-[#d4af37] hover:text-[#f3e5ab] text-sm text-center w-full transition-colors font-medium tracking-wide">New user? Register access</button>
+                <div class="flex items-center gap-3 my-2 opacity-50">
+                    <div class="h-[1px] bg-gradient-to-r from-transparent via-[#d4af37] to-transparent flex-1"></div>
+                </div>
+                <button id="auth-guest-btn" class="w-full bg-transparent hover:bg-white/5 border border-[#d4af37]/30 text-white font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-3 tracking-widest uppercase active:scale-95">
+                    <i class="ph ph-user text-[#d4af37]"></i> Enter as Guest
+                </button>
+            </div>
+
+            <!-- BOTTOM AD -->
+            <div class="w-full flex justify-center mt-8 relative z-10 rounded-xl overflow-hidden shadow-lg bg-black/50 border border-[#d4af37]/30 p-2 min-h-[50px]">
+                <script>
+                  atOptions = {
+                    'key' : '93887ceed9d36c96533170c6c4300c23',
+                    'format' : 'iframe',
+                    'height' : 250,
+                    'width' : 300,
+                    'params' : {}
+                  };
+                </script>
+                <script src="https://www.highperformanceformat.com/93887ceed9d36c96533170c6c4300c23/invoke.js"></script>
+            </div>
+        </div>
+    </div>
+
+    <!-- Screen Admin Panel -->
+    <div id="screen-admin" class="screen min-h-screen flex-col items-center justify-start pt-8 pb-12 p-4 w-full relative z-10 overflow-y-auto">
+        <div class="absolute top-6 right-6 z-20">
+            <button class="btn-logout flex items-center gap-2 text-slate-400 hover:text-red-400 transition-colors glass-panel px-4 py-2 rounded-full border border-slate-700/50 hover:border-red-900 text-sm tracking-wide uppercase active:scale-95">
+                <i class="ph ph-sign-out"></i> Exit Protocol
+            </button>
+        </div>
+        <div class="glass-panel p-6 md:p-10 rounded-3xl w-full max-w-4xl relative overflow-hidden shrink-0">
+            <div class="absolute -top-20 -left-20 w-40 h-40 bg-red-500 rounded-full blur-[80px] opacity-20 pointer-events-none"></div>
+            
+            <div class="flex items-center gap-4 mb-8">
+                <div class="w-16 h-16 bg-gradient-to-br from-red-600 to-red-900 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(220,38,38,0.4)] border-2 border-black">
+                    <i class="ph-fill ph-shield-warning text-white text-3xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-3xl font-black text-white font-serif tracking-wider">Admin Overwatch</h1>
+                    <p class="text-slate-400 text-sm tracking-wide uppercase">System Management Console</p>
+                </div>
+            </div>
+
+            <div class="mb-8">
+                <button onclick="window.wipeLeaderboard()" class="w-full bg-red-900/50 hover:bg-red-800 border border-red-500/50 text-white font-black py-4 rounded-xl transition-all flex items-center justify-center gap-2 uppercase tracking-widest active:scale-[0.98]">
+                    <i class="ph-bold ph-trash"></i> Wipe All Leaderboard Data
+                </button>
+            </div>
+
+            <h3 class="font-bold uppercase tracking-widest text-[#d4af37] mb-4 text-sm border-b border-slate-700/50 pb-2">User Registry</h3>
+            
+            <div id="admin-users-list" class="space-y-3">
+                <!-- User entries injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Screen 2: Identity -->
+    <div id="screen-identity" class="screen min-h-screen flex-col items-center justify-start pt-8 pb-12 p-4 w-full relative z-10 overflow-y-auto">
+        <div class="absolute top-6 right-6 z-20">
+            <button class="btn-logout flex items-center gap-2 text-slate-400 hover:text-red-400 transition-colors glass-panel px-4 py-2 rounded-full border border-slate-700/50 hover:border-red-900 text-sm tracking-wide uppercase active:scale-95">
+                <i class="ph ph-sign-out"></i> Disconnect
+            </button>
+        </div>
+        <div class="glass-panel p-6 md:p-10 rounded-3xl w-full max-w-md text-center relative overflow-hidden mt-auto mb-auto shrink-0">
+            <div class="absolute -bottom-20 -left-20 w-40 h-40 bg-[#d4af37] rounded-full blur-[80px] opacity-20 pointer-events-none"></div>
+            
+            <div class="w-24 h-24 bg-gradient-to-br from-[#aa8529] to-[#d4af37] rounded-full flex items-center justify-center mx-auto mb-8 shadow-[0_0_30px_rgba(212,175,55,0.4)] border-4 border-black/50 relative z-10">
+                <i class="ph-fill ph-buildings text-black text-4xl"></i>
+            </div>
+            <h1 class="text-3xl md:text-4xl font-black text-white mb-2 font-serif tracking-wider relative z-10">Club Identity</h1>
+            <p class="text-slate-400 mb-8 tracking-wide text-sm relative z-10">Register your permanent franchise name</p>
+            <form id="identity-form" class="space-y-6 relative z-10">
+                <div>
+                    <input type="text" id="team-name-input" placeholder="e.g. Royal Challengers..." required
+                        class="w-full bg-black/40 border border-slate-700 text-white px-5 py-4 rounded-xl focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] transition-all placeholder:text-slate-600 text-center tracking-wide text-lg" />
+                </div>
+                <button type="submit" class="w-full bg-gradient-to-r from-[#aa8529] to-[#d4af37] text-black font-bold py-4 rounded-xl transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)] hover:shadow-[0_0_30px_rgba(212,175,55,0.5)] flex items-center justify-center gap-2 uppercase tracking-widest active:scale-95">
+                    Enter Dashboard <i class="ph-bold ph-arrow-right"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Screen 3: Home & Bot Modal -->
+    <div id="screen-home" class="screen min-h-screen flex-col items-center justify-start pt-8 pb-12 p-4 w-full relative z-10 overflow-y-auto">
+        
+        <!-- Bot Selection Modal -->
+        <div id="bot-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden bg-black/80 backdrop-blur-sm transition-opacity">
+            <div class="glass-panel p-8 rounded-3xl w-full max-w-sm text-center border border-[#d4af37]/40 shadow-[0_0_50px_rgba(212,175,55,0.2)] relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-[#d4af37] rounded-full blur-[60px] opacity-20 pointer-events-none"></div>
+                <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-400/30 shadow-[0_0_20px_rgba(59,130,246,0.4)]">
+                    <i class="ph-fill ph-robot text-white text-3xl"></i>
+                </div>
+                <h3 class="text-2xl font-black text-white mb-2 font-serif tracking-widest uppercase">AI Opponents</h3>
+                <p class="text-slate-400 text-sm mb-6">How many advanced bots will you challenge?</p>
+                
+                <div class="flex justify-center gap-2 sm:gap-3 mb-8">
+                    <button class="bot-count-btn w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-black/50 border border-slate-600 hover:border-[#d4af37] text-white font-bold transition-all active:scale-95 text-lg" data-count="1">1</button>
+                    <button class="bot-count-btn w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-black/50 border border-slate-600 hover:border-[#d4af37] text-white font-bold transition-all active:scale-95 text-lg" data-count="2">2</button>
+                    <button class="bot-count-btn w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#d4af37]/20 border border-[#d4af37] text-[#d4af37] font-bold transition-all active:scale-95 text-lg" data-count="3">3</button>
+                    <button class="bot-count-btn w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-black/50 border border-slate-600 hover:border-[#d4af37] text-white font-bold transition-all active:scale-95 text-lg" data-count="4">4</button>
+                    <button class="bot-count-btn w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-black/50 border border-slate-600 hover:border-[#d4af37] text-white font-bold transition-all active:scale-95 text-lg" data-count="5">5</button>
+                </div>
+                
+                <div class="flex gap-4">
+                    <button id="btn-cancel-bot" class="flex-1 py-3 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 transition-all uppercase tracking-widest text-sm font-bold active:scale-95">Cancel</button>
+                    <button id="btn-confirm-bot" class="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-3 rounded-xl font-bold transition-all uppercase tracking-widest text-sm shadow-[0_0_15px_rgba(59,130,246,0.4)] active:scale-95">Launch</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="absolute top-6 right-6 z-20">
+            <button class="btn-logout flex items-center gap-2 text-slate-400 hover:text-red-400 transition-colors glass-panel px-4 py-2 rounded-full border border-slate-700/50 hover:border-red-900 text-sm tracking-wide uppercase active:scale-95">
+                <i class="ph ph-sign-out"></i> Disconnect
+            </button>
+        </div>
+
+        <!-- Main Dashboard Actions -->
+        <div class="w-full max-w-lg flex flex-col items-center shrink-0 mt-8">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 glass-panel rounded-full flex items-center justify-center mx-auto mb-4 border border-[#d4af37]/40 shadow-[0_0_20px_rgba(212,175,55,0.2)] relative">
+                    <i class="ph-fill ph-user text-[#d4af37] text-3xl"></i>
+                    <div id="user-level-badge" class="absolute -bottom-2 -right-2 bg-gradient-to-r from-[#aa8529] to-[#d4af37] text-black font-black text-[10px] w-6 h-6 rounded-full flex items-center justify-center border-2 border-black hidden">1</div>
+                </div>
+                <h1 class="text-3xl font-black text-gold-gradient font-serif tracking-widest uppercase mb-2" id="welcome-text">Welcome</h1>
+                <p class="text-slate-400 tracking-wide text-sm">Select an auction format to begin</p>
+            </div>
+            
+            <div class="w-full space-y-5">
+                <button id="btn-create-room" class="w-full relative group overflow-hidden rounded-3xl active:scale-95 transition-all duration-300 shadow-[0_10px_30px_rgba(0,0,0,0.5)] hover:shadow-[0_0_40px_rgba(212,175,55,0.4)] border border-[#d4af37]/20 hover:border-[#d4af37]/60 bg-[#0a0a0f]/80 backdrop-blur-md">
+                    <div class="absolute inset-0 bg-gradient-to-r from-[#aa8529]/10 to-[#d4af37]/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                    <div class="relative p-5 md:p-6 flex items-center justify-between transition-all duration-300">
+                        <div class="flex items-center gap-5">
+                            <div class="h-14 w-14 rounded-2xl bg-gradient-to-br from-[#aa8529] to-[#d4af37] flex items-center justify-center shadow-[0_0_15px_rgba(212,175,55,0.5)] shrink-0 group-hover:scale-105 transition-transform duration-300">
+                                <i class="ph-fill ph-users-three text-black text-2xl"></i>
+                            </div>
+                            <div class="text-left">
+                                <h3 class="text-lg md:text-xl font-black text-white font-serif tracking-widest uppercase group-hover:text-[#d4af37] transition-colors">Create Room</h3>
+                                <p class="text-xs text-slate-400 mt-1 uppercase tracking-[0.2em] font-bold">Host & Invite Friends</p>
+                            </div>
+                        </div>
+                        <div class="h-12 w-12 shrink-0 rounded-full border border-[#d4af37]/30 flex items-center justify-center group-hover:bg-[#d4af37] transition-all duration-300 bg-white/5 group-hover:shadow-[0_0_20px_rgba(212,175,55,0.4)]">
+                            <i class="ph-bold ph-arrow-right text-[#d4af37] group-hover:text-black text-xl transition-colors"></i>
+                        </div>
+                    </div>
+                </button>
+                
+                <button id="btn-play-bot" class="w-full relative group overflow-hidden rounded-3xl active:scale-95 transition-all duration-300 shadow-[0_10px_30px_rgba(0,0,0,0.5)] hover:shadow-[0_0_40px_rgba(59,130,246,0.4)] border border-blue-500/20 hover:border-blue-500/60 bg-[#0a0a0f]/80 backdrop-blur-md">
+                    <div class="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-indigo-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                    <div class="relative p-5 md:p-6 flex items-center justify-between transition-all duration-300">
+                        <div class="flex items-center gap-5">
+                            <div class="h-14 w-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-[0_0_15px_rgba(59,130,246,0.5)] shrink-0 group-hover:scale-105 transition-transform duration-300">
+                                <i class="ph-fill ph-robot text-white text-2xl"></i>
+                            </div>
+                            <div class="text-left">
+                                <h3 class="text-lg md:text-xl font-black text-white font-serif tracking-widest uppercase group-hover:text-blue-400 transition-colors">Play vs AI</h3>
+                                <p class="text-xs text-slate-400 mt-1 uppercase tracking-[0.2em] font-bold">Intense Simulation</p>
+                            </div>
+                        </div>
+                        <div class="h-12 w-12 shrink-0 rounded-full border border-blue-500/30 flex items-center justify-center group-hover:bg-blue-500 transition-all duration-300 bg-white/5 group-hover:shadow-[0_0_20px_rgba(59,130,246,0.4)]">
+                            <i class="ph-bold ph-arrow-right text-blue-400 group-hover:text-white text-xl transition-colors"></i>
+                        </div>
+                    </div>
+                </button>
+
+                <!-- ROOM CODE SECTION -->
+                <div class="w-full glass-panel border border-[#d4af37]/30 p-6 md:p-8 rounded-3xl shadow-[0_0_40px_rgba(0,0,0,0.6)] relative overflow-hidden mt-6 mb-8">
+                    <div class="absolute -top-20 -right-20 w-40 h-40 bg-[#d4af37] rounded-full blur-[80px] opacity-10 pointer-events-none"></div>
+                    <div class="flex items-center gap-3 mb-6 relative z-10">
+                        <i class="ph-fill ph-magnifying-glass text-[#d4af37] text-xl"></i>
+                        <h3 class="font-black text-white tracking-widest uppercase text-sm font-serif">Have a Room Code?</h3>
+                    </div>
+                    <form id="form-join-code" class="w-full flex flex-col gap-4 relative z-10">
+                        <input type="text" id="room-code-input" placeholder="ENTER CODE" required 
+                            class="w-full bg-[#0a0a0f] border border-slate-700/80 rounded-xl px-5 py-4 text-center uppercase font-mono tracking-[0.3em] focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] text-lg text-white font-bold placeholder:font-normal placeholder:tracking-widest placeholder:text-slate-600 transition-all shadow-inner" />
+                        <button type="submit" class="w-full bg-gradient-to-r from-[#aa8529] via-[#d4af37] to-[#aa8529] bg-[length:200%_auto] hover:bg-right text-black py-4 rounded-xl font-black transition-all uppercase tracking-widest active:scale-[0.98] shadow-[0_0_20px_rgba(212,175,55,0.2)]">Join Room</button>
+                    </form>
+                </div>
+                
+                <!-- GLOBAL LEADERBOARD SECTION -->
+                <div class="w-full glass-panel border border-[#d4af37]/40 p-6 md:p-8 rounded-3xl shadow-[0_0_40px_rgba(212,175,55,0.15)] relative overflow-hidden mb-8">
+                    <div class="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-32 bg-[#d4af37] rounded-full blur-[80px] opacity-10 pointer-events-none"></div>
+                    <div class="flex flex-col items-center justify-center gap-2 mb-6 relative z-10">
+                        <div class="p-3 glass-panel rounded-full border border-[#d4af37]/50 shadow-[0_0_15px_rgba(212,175,55,0.3)]">
+                            <i class="ph-fill ph-trophy text-[#d4af37] text-2xl"></i>
+                        </div>
+                        <h3 class="font-black text-white tracking-widest uppercase text-lg font-serif text-gold-gradient text-center">Global Hall of Fame</h3>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400">AI Domination Rankings</p>
+                    </div>
+                    
+                    <div id="leaderboard-list" class="space-y-3 relative z-10 min-h-[150px]">
+                        <div class="flex justify-center py-6">
+                            <i class="ph-bold ph-spinner-gap animate-spin text-[#d4af37] text-3xl"></i>
+                        </div>
+                    </div>
+                    
+                    <div id="leaderboard-my-rank" class="mt-5 pt-5 border-t border-slate-700/50 relative z-10 hidden">
+                        <!-- User's rank injected here -->
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- 3 HORIZONTAL ADS (Sponsored Partners Section) -->
+        <div class="w-full max-w-5xl mt-6 mb-auto shrink-0 relative z-10">
+            <div class="flex items-center justify-center gap-4 mb-8">
+                <div class="h-[1px] bg-gradient-to-r from-transparent to-[#d4af37]/50 w-16 md:w-32"></div>
+                <span class="text-[10px] md:text-xs uppercase tracking-[0.3em] font-bold text-[#d4af37]/80 font-serif">Premium Sponsors</span>
+                <div class="h-[1px] bg-gradient-to-l from-transparent to-[#d4af37]/50 w-16 md:w-32"></div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Ad Box 1 -->
+                <div class="relative group rounded-2xl p-[1px] bg-gradient-to-b from-[#d4af37]/30 to-transparent overflow-hidden shadow-lg transition-transform hover:-translate-y-1">
+                    <div class="absolute inset-0 bg-[#d4af37]/5 group-hover:bg-[#d4af37]/10 transition-colors"></div>
+                    <div class="glass-panel rounded-[15px] overflow-hidden flex justify-center items-center p-2 bg-[#0a0a0f]/90 min-h-[100px] relative z-10 h-full">
+                        <script>
+                          atOptions = {
+                            'key' : '93887ceed9d36c96533170c6c4300c23',
+                            'format' : 'iframe',
+                            'height' : 250,
+                            'width' : 300,
+                            'params' : {}
+                          };
+                        </script>
+                        <script src="https://www.highperformanceformat.com/93887ceed9d36c96533170c6c4300c23/invoke.js"></script>
+                    </div>
+                </div>
+                
+                <!-- Ad Box 2 -->
+                <div class="relative group rounded-2xl p-[1px] bg-gradient-to-b from-[#d4af37]/30 to-transparent overflow-hidden shadow-lg transition-transform hover:-translate-y-1">
+                    <div class="absolute inset-0 bg-[#d4af37]/5 group-hover:bg-[#d4af37]/10 transition-colors"></div>
+                    <div class="glass-panel rounded-[15px] overflow-hidden flex justify-center items-center p-2 bg-[#0a0a0f]/90 min-h-[100px] relative z-10 h-full">
+                        <script>
+                          atOptions = {
+                            'key' : '93887ceed9d36c96533170c6c4300c23',
+                            'format' : 'iframe',
+                            'height' : 250,
+                            'width' : 300,
+                            'params' : {}
+                          };
+                        </script>
+                        <script src="https://www.highperformanceformat.com/93887ceed9d36c96533170c6c4300c23/invoke.js"></script>
+                    </div>
+                </div>
+                
+                <!-- Ad Box 3 -->
+                <div class="relative group rounded-2xl p-[1px] bg-gradient-to-b from-[#d4af37]/30 to-transparent overflow-hidden shadow-lg transition-transform hover:-translate-y-1">
+                    <div class="absolute inset-0 bg-[#d4af37]/5 group-hover:bg-[#d4af37]/10 transition-colors"></div>
+                    <div class="glass-panel rounded-[15px] overflow-hidden flex justify-center items-center p-2 bg-[#0a0a0f]/90 min-h-[100px] relative z-10 h-full">
+                        <script async="async" data-cfasync="false" src="https://pl29076862.profitablecpmratenetwork.com/833dd88df4a4ba18107cecce2621be59/invoke.js"></script>
+                        <div id="container-833dd88df4a4ba18107cecce2621be59"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Screen 4: Lobby -->
+    <div id="screen-lobby" class="screen min-h-screen items-center justify-center p-4 md:p-6 w-full relative z-10">
+        <div class="max-w-2xl w-full glass-panel border border-[#d4af37]/30 rounded-3xl p-6 md:p-10 shadow-[0_0_50px_rgba(212,175,55,0.1)] relative overflow-hidden">
+            <div class="absolute top-0 right-0 w-64 h-64 bg-[#d4af37] rounded-full blur-[100px] opacity-10 pointer-events-none"></div>
+            <div class="text-center mb-10 relative z-10">
+                <h2 class="text-2xl font-black text-white mb-4 font-serif tracking-widest uppercase">Room Lobby</h2>
+                <div class="inline-block bg-black/60 border border-[#d4af37]/50 rounded-2xl p-6 mb-2 shadow-inner">
+                    <p class="text-xs text-[#d4af37] mb-2 uppercase tracking-widest font-bold">Access Code</p>
+                    <p id="lobby-room-code" class="text-5xl font-mono font-black tracking-[0.2em] text-white">-----</p>
+                </div>
+                <p class="text-sm text-slate-400 mt-2 tracking-wide">Share this code to invite managers</p>
+            </div>
+            <div class="mb-10 relative z-10">
+                <div class="flex items-center justify-between mb-4 border-b border-slate-700/50 pb-2">
+                    <h3 class="text-sm font-bold tracking-widest uppercase text-[#d4af37] flex items-center gap-2"><i class="ph-fill ph-users-three text-lg"></i> Active Franchises</h3>
+                    <span id="lobby-member-count" class="bg-white/10 px-3 py-1 rounded-full text-sm font-mono text-white border border-white/20">0</span>
+                </div>
+                <div id="lobby-members-list" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <!-- Members injected here -->
+                </div>
+            </div>
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mt-8 pt-6 border-t border-slate-700/50 relative z-10">
+                <button class="btn-leave-room text-slate-400 hover:text-red-400 flex items-center justify-center gap-2 transition-colors w-full sm:w-auto py-3 px-4 glass-panel rounded-xl uppercase text-sm tracking-widest font-bold active:scale-95"><i class="ph-bold ph-sign-out text-lg"></i> Exit Lobby</button>
+                <div id="lobby-host-controls" class="hidden w-full sm:w-auto">
+                    <button id="btn-start-auction" class="w-full sm:w-auto bg-gradient-to-r from-[#aa8529] to-[#d4af37] hover:from-[#d4af37] hover:to-[#f3e5ab] text-black disabled:opacity-50 disabled:grayscale px-8 py-4 rounded-xl font-black transition-all shadow-[0_0_20px_rgba(212,175,55,0.4)] flex items-center justify-center gap-2 uppercase tracking-widest active:scale-95"><i class="ph-fill ph-gavel text-xl"></i> Commence Auction</button>
+                </div>
+                <div id="lobby-waiting-text" class="flex items-center justify-center gap-2 text-[#d4af37] animate-pulse hidden w-full sm:w-auto py-3 text-sm tracking-widest uppercase font-bold bg-[#d4af37]/10 rounded-xl border border-[#d4af37]/30"><i class="ph-fill ph-clock-countdown text-xl"></i> Awaiting Host...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Screen 5: Auction / Live Room -->
+    <div id="screen-auction" class="screen min-h-screen flex-col w-full md:h-screen md:overflow-hidden overflow-y-auto relative z-10">
+        <!-- Premium Header -->
+        <header class="glass-panel border-b border-[#d4af37]/30 p-4 md:p-5 flex justify-between items-center shadow-lg shrink-0 z-20 relative">
+            <div class="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-black/80 z-0"></div>
+            <div class="flex items-center gap-4 z-10">
+                <div class="bg-gradient-to-br from-[#aa8529] to-[#d4af37] p-2 md:p-3 rounded-xl shadow-[0_0_15px_rgba(212,175,55,0.3)]">
+                    <i class="ph-fill ph-gavel text-black text-2xl md:text-3xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-black text-lg md:text-xl leading-tight font-serif tracking-widest uppercase text-white drop-shadow-md">Premium Auction</h1>
+                    <p class="text-xs text-[#d4af37] font-mono tracking-[0.2em] uppercase mt-1 flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse inline-block"></span> Live &bull; Code: <span id="header-room-code" class="text-white"></span>
+                    </p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4 md:gap-8 z-10">
+                <div class="text-right glass-panel px-4 py-2 rounded-xl border border-slate-700/50 hidden sm:block">
+                    <p id="header-team-name" class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-0.5">My Franchise</p>
+                    <p id="header-team-purse" class="font-mono font-black text-xl md:text-2xl text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]">₹0</p>
+                </div>
+                <button class="btn-leave-room p-3 md:p-4 glass-panel border border-slate-700/50 hover:border-red-500/50 rounded-xl text-slate-400 hover:text-red-400 transition-colors active:scale-95" title="Exit Auction">
+                    <i class="ph-bold ph-sign-out text-xl md:text-2xl"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Dashboard Area -->
+        <div class="flex-1 flex flex-col lg:flex-row p-4 gap-4 min-h-0 relative z-10 max-w-[1600px] mx-auto w-full">
+            
+            <!-- Mobile Purse Display -->
+            <div class="sm:hidden glass-panel p-4 rounded-xl border border-emerald-500/30 flex justify-between items-center mb-2">
+                <p class="text-xs text-slate-400 uppercase tracking-widest font-bold">Available Funds</p>
+                <p id="mobile-team-purse" class="font-mono font-black text-2xl text-emerald-400">₹0</p>
+            </div>
+
+            <!-- Left Column - Player Spotlight & Bidding -->
+            <div class="flex-1 flex flex-col gap-4 min-h-[60vh] lg:min-h-0 w-full relative">
+                
+                <!-- SMALL BANNER AD (Auction Room) -->
+                <div class="glass-panel rounded-xl border border-[#d4af37]/30 p-1 flex items-center justify-center relative overflow-hidden w-full max-w-[340px] mx-auto min-h-[60px] shadow-sm bg-black/50 shrink-0">
+                    <p class="absolute text-[8px] text-slate-500 uppercase tracking-widest top-1 left-2 z-10 pointer-events-none">Sponsored</p>
+                    <div class="relative z-20 overflow-hidden w-full flex justify-center mt-2">
+                        <script>
+                          atOptions = {
+                            'key' : '6a9984397c0bf78a7908b6925e3f3f7a',
+                            'format' : 'iframe',
+                            'height' : 50,
+                            'width' : 320,
+                            'params' : {}
+                          };
+                        </script>
+                        <script src="https://www.highperformanceformat.com/6a9984397c0bf78a7908b6925e3f3f7a/invoke.js"></script>
+                    </div>
+                </div>
+                
+                <!-- Player Spotlight -->
+                <div id="auction-player-card" class="flex-1 glass-panel rounded-3xl border border-[#d4af37]/20 p-6 lg:p-8 flex flex-col items-center justify-center relative overflow-y-auto min-h-0 shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+                    <!-- Injected via JS -->
+                </div>
+                
+                <!-- Command Console -->
+                <div id="auction-bid-console" class="glass-panel rounded-3xl border border-[#d4af37]/40 p-4 lg:p-6 flex flex-col sm:flex-row items-center gap-4 lg:gap-6 shrink-0 shadow-[0_0_30px_rgba(0,0,0,0.8)] relative overflow-hidden">
+                    <!-- Injected via JS -->
+                </div>
+            </div>
+
+            <!-- Right Column - Market Status & Ledger -->
+            <div class="w-full lg:w-[400px] flex flex-col gap-4 shrink-0 h-[70vh] lg:h-full">
+                
+                <!-- Market Status (Teams) -->
+                <div class="glass-panel rounded-3xl border border-slate-700/50 flex-1 flex flex-col min-h-0 relative overflow-hidden">
+                    <div class="p-4 md:p-5 border-b border-slate-700/50 flex items-center justify-between bg-black/40 shrink-0">
+                        <h3 class="font-bold uppercase tracking-widest text-xs md:text-sm text-[#d4af37] flex items-center gap-2">
+                            <i class="ph-fill ph-chart-bar text-lg"></i> Market Status
+                        </h3>
+                        <span id="auction-teams-count" class="bg-[#d4af37]/20 text-[#d4af37] text-xs px-3 py-1 rounded-full font-mono border border-[#d4af37]/30">0</span>
+                    </div>
+                    <div id="auction-teams-list" class="flex-1 overflow-y-auto p-3 space-y-3 min-h-0 scroll-smooth">
+                        <!-- Teams injected here -->
+                    </div>
+                </div>
+
+                <!-- Transaction Ledger (Chat/Logs) -->
+                <div class="glass-panel rounded-3xl border border-slate-700/50 h-72 lg:h-[35%] shrink-0 flex flex-col relative overflow-hidden">
+                    <div class="p-4 border-b border-slate-700/50 bg-black/40 shrink-0">
+                        <h3 class="font-bold uppercase tracking-widest text-xs text-[#d4af37] flex items-center gap-2">
+                            <i class="ph-fill ph-scroll text-lg"></i> Transaction Ledger
+                        </h3>
+                    </div>
+                    <div id="auction-logs-list" class="flex-1 overflow-y-auto p-4 space-y-4 flex flex-col-reverse min-h-0 text-sm md:text-base font-mono">
+                        <!-- Logs injected here -->
+                    </div>
+                    <form id="chat-form" class="p-3 border-t border-slate-700/50 bg-black/60 shrink-0">
+                        <div class="flex gap-2">
+                            <input type="text" id="chat-input" placeholder="Transmit message..." autocomplete="off"
+                                class="w-full bg-black/50 text-white px-4 py-3 rounded-xl border border-slate-600 focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] placeholder:text-slate-500 font-mono text-sm" />
+                            <button type="submit" class="bg-slate-800 border border-slate-600 p-3 rounded-xl text-white hover:border-[#d4af37] hover:text-[#d4af37] transition-all active:scale-95">
+                                <i class="ph-bold ph-paper-plane-tilt text-xl"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase logic and App Scripts -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, updateDoc, onSnapshot, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Consent Banner Logic ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const consentBanner = document.getElementById('consent-banner');
+            const acceptBtn = document.getElementById('btn-accept-consent');
+            
+            if (!localStorage.getItem('luxury_auction_consent')) {
+                setTimeout(() => {
+                    consentBanner.classList.remove('translate-y-full');
+                }, 1000);
+            }
+
+            acceptBtn.addEventListener('click', () => {
+                localStorage.setItem('luxury_auction_consent', 'true');
+                consentBanner.classList.add('translate-y-full');
+            });
+        });
+
+        // --- Firebase Config ---
+        const userProvidedConfig = {
+            apiKey: "AIzaSyD07Puhdwug5YbXxpQ14vwhyb-vOchQ3io",
+            authDomain: "ipl-auction-amey.firebaseapp.com",
+            projectId: "ipl-auction-amey",
+            storageBucket: "ipl-auction-amey.firebasestorage.app",
+            messagingSenderId: "614780702956",
+            appId: "1:614780702956:web:22547bfc203669d33215c9"
+        };
+
+        let firebaseConfig = userProvidedConfig;
+        try {
+            if (typeof __firebase_config !== 'undefined' && __firebase_config && __firebase_config.trim() !== "") {
+                const envConfig = JSON.parse(__firebase_config);
+                if (envConfig.apiKey) firebaseConfig = envConfig;
+            }
+        } catch (e) {
+            console.warn("Using fallback configuration.");
+        }
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' && __app_id ? __app_id : 'default-app-id';
+
+        // Base Data
+        const PLAYERS = [
+            { id: 1, name: "MS Dhoni", role: "Wicket Keeper", basePrice: 20000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=MSD&backgroundColor=aa8529&textColor=000000" },
+            { id: 2, name: "Virat Kohli", role: "Batsman", basePrice: 20000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=VK&backgroundColor=aa8529&textColor=000000" },
+            { id: 3, name: "Jasprit Bumrah", role: "Bowler", basePrice: 20000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=JB&backgroundColor=111116&textColor=d4af37" },
+            { id: 4, name: "Rashid Khan", role: "All-Rounder", basePrice: 20000000, country: "AFG", img: "https://api.dicebear.com/7.x/initials/svg?seed=RK&backgroundColor=111116&textColor=d4af37" },
+            { id: 5, name: "Suryakumar Yadav", role: "Batsman", basePrice: 20000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=SY&backgroundColor=aa8529&textColor=000000" },
+            { id: 6, name: "Mitchell Starc", role: "Bowler", basePrice: 20000000, country: "AUS", img: "https://api.dicebear.com/7.x/initials/svg?seed=MS&backgroundColor=111116&textColor=d4af37" },
+            { id: 7, name: "Heinrich Klaasen", role: "Wicket Keeper", basePrice: 15000000, country: "RSA", img: "https://api.dicebear.com/7.x/initials/svg?seed=HK&backgroundColor=aa8529&textColor=000000" },
+            { id: 8, name: "Rinku Singh", role: "Batsman", basePrice: 10000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=RS&backgroundColor=111116&textColor=d4af37" },
+            { id: 9, name: "Matheesha Pathirana", role: "Bowler", basePrice: 10000000, country: "SL", img: "https://api.dicebear.com/7.x/initials/svg?seed=MP&backgroundColor=aa8529&textColor=000000" },
+            { id: 10, name: "Travis Head", role: "Batsman", basePrice: 20000000, country: "AUS", img: "https://api.dicebear.com/7.x/initials/svg?seed=TH&backgroundColor=111116&textColor=d4af37" },
+            { id: 11, name: "Trent Boult", role: "Bowler", basePrice: 20000000, country: "NZ", img: "https://api.dicebear.com/7.x/initials/svg?seed=TB&backgroundColor=aa8529&textColor=000000" },
+            { id: 12, name: "Glenn Maxwell", role: "All-Rounder", basePrice: 20000000, country: "AUS", img: "https://api.dicebear.com/7.x/initials/svg?seed=GM&backgroundColor=111116&textColor=d4af37" },
+            { id: 13, name: "Nicholas Pooran", role: "Wicket Keeper", basePrice: 20000000, country: "WI", img: "https://api.dicebear.com/7.x/initials/svg?seed=NP&backgroundColor=aa8529&textColor=000000" },
+            { id: 14, name: "Yashasvi Jaiswal", role: "Batsman", basePrice: 15000000, country: "IND", img: "https://api.dicebear.com/7.x/initials/svg?seed=YJ&backgroundColor=111116&textColor=d4af37" },
+            { id: 15, name: "Pat Cummins", role: "All-Rounder", basePrice: 20000000, country: "AUS", img: "https://api.dicebear.com/7.x/initials/svg?seed=PC&backgroundColor=aa8529&textColor=000000" }
+        ];
+        
+        const INITIAL_PURSE = 1200000000; // 120 Crore
+        const TIMER_DURATION = 20000;
+
+        let authReady = false;
+        let isLoginMode = true;
+        let user = null;
+        let isAdmin = false;
+        let teamName = "";
+        let userLevel = 1;
+        let hasJoinedIdentity = false;
+        
+        let currentRoomId = null;
+        let roomData = null;
+        let membersData = [];
+        
+        let unsubRoom = null;
+        let unsubMembers = null;
+        let hostTimerInterval = null;
+        let uiTimerInterval = null;
+        let toastTimeout = null;
+
+        // --- Utility Functions ---
+        const formatMoney = (val) => {
+            if (val === 0) return "0";
+            if (val >= 10000000) return (val / 10000000).toFixed(2) + " Cr";
+            if (val >= 100000) return (val / 100000).toFixed(2) + " L";
+            return "₹" + val.toLocaleString();
+        };
+
+        const generateRoomCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
+
+        const showToast = (msg, duration = 4000) => {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').innerText = msg;
+            toast.classList.remove('opacity-0', 'translate-y-[-20px]');
+            toast.classList.add('opacity-100', 'translate-y-0');
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toast.classList.remove('opacity-100', 'translate-y-0');
+                toast.classList.add('opacity-0', 'translate-y-[-20px]');
+            }, duration);
+        };
+
+        // --- Screen Navigation ---
+        const setScreen = (screenId) => {
+            document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+            const activeScreen = document.getElementById(screenId);
+            activeScreen.classList.add('active');
+            activeScreen.scrollTop = 0; // Fixes the scroll issue
+            window.scrollTo(0, 0); // Double ensure window is at top
+        };
+
+        const updateViewState = () => {
+            if (!authReady) return setScreen('screen-loading');
+            if (!user) return setScreen('screen-auth');
+            
+            if (isAdmin) {
+                setScreen('screen-admin');
+                renderAdminPanel();
+                return;
+            }
+
+            if (!hasJoinedIdentity) return setScreen('screen-identity');
+            if (!currentRoomId) {
+                document.getElementById('welcome-text').innerText = teamName;
+                return setScreen('screen-home');
+            }
+
+            if (roomData && roomData.status === 'waiting') {
+                setScreen('screen-lobby');
+                renderLobby();
+            } else if (roomData && (roomData.status === 'live' || roomData.status === 'finished')) {
+                setScreen('screen-auction');
+                renderAuctionHeader();
+                renderAuctionBoard();
+                renderTeams();
+                renderLogs();
+            }
+        };
+
+        // --- Admin Functions ---
+        let allUsersData = [];
+
+        const renderAdminPanel = async () => {
+            const listEl = document.getElementById('admin-users-list');
+            listEl.innerHTML = `<p class="text-center text-slate-400 py-4"><i class="ph-bold ph-spinner-gap animate-spin text-[#d4af37] text-2xl"></i></p>`;
+            
+            try {
+                const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'users');
+                const snap = await getDocs(usersRef);
+                allUsersData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                
+                let html = '';
+                allUsersData.forEach(u => {
+                    if (u.id === user.uid || u.email === 'admin@amey.com') return; // skip admin self
+                    const isBanned = u.isBanned && u.banExpiry > Date.now();
+                    const banBtnText = isBanned ? 'Unban User' : 'Ban (2 Days)';
+                    const banColor = isBanned ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-red-600 hover:bg-red-500';
+                    
+                    html += `
+                        <div class="glass-panel p-4 rounded-xl flex items-center justify-between border border-slate-700/50 mb-2">
+                            <div>
+                                <p class="font-bold text-white">${u.teamName || 'Unknown Franchise'} <span class="text-xs text-slate-400 font-mono ml-2">(${u.id.substring(0,8)}...)</span></p>
+                                <p class="text-xs text-[#d4af37] font-bold tracking-widest uppercase mt-1">Level: ${u.level || 1} <span class="text-slate-500 mx-1">|</span> Wins: ${u.wins || 0}</p>
+                                ${isBanned ? `<p class="text-[10px] text-red-400 mt-2 uppercase tracking-widest font-bold"><i class="ph-fill ph-warning"></i> Banned until: ${new Date(u.banExpiry).toLocaleString()}</p>` : ''}
+                            </div>
+                            <button onclick="window.toggleBanUser('${u.id}', ${isBanned})" class="px-4 py-2 rounded-lg text-white text-[10px] md:text-xs uppercase tracking-widest font-black ${banColor} transition-colors active:scale-95 shadow-lg">${banBtnText}</button>
+                        </div>
+                    `;
+                });
+                if(allUsersData.length === 0) html = `<p class="text-center text-slate-400 italic">No registered users found in the system.</p>`;
+                listEl.innerHTML = html;
+            } catch (e) {
+                console.error(e);
+                listEl.innerHTML = `<p class="text-red-400 text-center py-4">Failed to synchronize user registry.</p>`;
+            }
+        };
+
+        window.toggleBanUser = async (uid, currentlyBanned) => {
+            try {
+                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', uid);
+                if (currentlyBanned) {
+                    await updateDoc(userRef, { isBanned: false, banExpiry: 0 });
+                    showToast("User successfully unbanned.");
+                } else {
+                    const expiry = Date.now() + (2 * 24 * 60 * 60 * 1000); // 2 days
+                    await updateDoc(userRef, { isBanned: true, banExpiry: expiry });
+                    showToast("User restricted for 48 hours.");
+                }
+                renderAdminPanel();
+            } catch (e) {
+                console.error(e);
+                showToast("System error: Failed to update restriction status.");
+            }
+        };
+
+        window.wipeLeaderboard = async () => {
+            if(!confirm("CRITICAL WARNING:\nAre you sure you want to permanently wipe all global leaderboard data? This action is irreversible.")) return;
+            try {
+                showToast("Executing Global Wipe Protocol...");
+                const promises = allUsersData.map(u => {
+                    const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', u.id);
+                    return updateDoc(userRef, { wins: 0, level: 1 });
+                });
+                await Promise.all(promises);
+                showToast("Leaderboard successfully wiped clean.");
+                renderAdminPanel();
+            } catch (e) {
+                console.error(e);
+                showToast("System error: Leaderboard wipe failed.");
+            }
+        };
+
+
+        const fetchLeaderboard = async () => {
+            if (!user || isAdmin) return;
+            const lbList = document.getElementById('leaderboard-list');
+            const myRankEl = document.getElementById('leaderboard-my-rank');
+            
+            try {
+                const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'users');
+                const snap = await getDocs(usersRef);
+                const allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                
+                // Sort by wins (highest first)
+                allUsers.sort((a, b) => (b.wins || 0) - (a.wins || 0));
+                
+                const top3 = allUsers.slice(0, 3);
+                const myIndex = allUsers.findIndex(u => u.id === user.uid);
+                
+                let lbHtml = '';
+                if(top3.length === 0) {
+                    lbHtml = `<p class="text-slate-500 text-sm text-center italic py-4">No records yet. Claim the throne.</p>`;
+                } else {
+                    top3.forEach((u, i) => {
+                        let rankIcon, bgClass, borderClass, textClass;
+                        if(i === 0) {
+                            rankIcon = '🥇'; bgClass = 'bg-gradient-to-r from-[#aa8529]/20 to-[#d4af37]/10'; borderClass = 'border-[#d4af37]/50'; textClass = 'text-[#d4af37]';
+                        } else if(i === 1) {
+                            rankIcon = '🥈'; bgClass = 'bg-slate-300/10'; borderClass = 'border-slate-300/40'; textClass = 'text-slate-300';
+                        } else {
+                            rankIcon = '🥉'; bgClass = 'bg-orange-300/10'; borderClass = 'border-orange-400/40'; textClass = 'text-orange-300';
+                        }
+                        
+                        lbHtml += `
+                            <div class="flex items-center justify-between p-3 rounded-2xl border ${borderClass} ${bgClass} shadow-inner">
+                                <div class="flex items-center gap-3">
+                                    <span class="text-2xl drop-shadow-md">${rankIcon}</span>
+                                    <div class="flex flex-col">
+                                        <span class="font-bold uppercase tracking-widest text-sm ${textClass}">${u.teamName || 'Unknown'}</span>
+                                        <span class="text-[10px] text-slate-400 uppercase tracking-widest">Level ${u.level || 1}</span>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <span class="font-black text-lg ${textClass}">${u.wins || 0}</span>
+                                    <span class="text-[10px] text-slate-500 uppercase tracking-widest block -mt-1">Wins</span>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+                lbList.innerHTML = lbHtml;
+
+                if(myIndex !== -1 && !allUsers[myIndex].isGuest) {
+                    const me = allUsers[myIndex];
+                    userLevel = me.level || 1;
+                    document.getElementById('user-level-badge').innerText = userLevel;
+                    document.getElementById('user-level-badge').classList.remove('hidden');
+                    
+                    myRankEl.classList.remove('hidden');
+                    myRankEl.innerHTML = `
+                        <div class="flex items-center justify-between px-2">
+                            <div class="flex items-center gap-3">
+                                <span class="font-mono text-slate-500 text-sm border border-slate-700 w-8 h-8 flex items-center justify-center rounded-lg bg-black/50">#${myIndex + 1}</span>
+                                <div class="flex flex-col">
+                                    <span class="font-bold uppercase tracking-widest text-sm text-white">Your Franchise</span>
+                                    <span class="text-[10px] text-slate-400 uppercase tracking-widest">Level ${me.level || 1}</span>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <span class="font-black text-white text-lg">${me.wins || 0}</span>
+                                <span class="text-[10px] text-slate-500 uppercase tracking-widest block -mt-1">Wins</span>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+            } catch (e) {
+                console.error("Leaderboard error:", e);
+                lbList.innerHTML = `<p class="text-red-400 text-sm text-center py-4">Error loading hall of fame.</p>`;
+            }
+        };
+
+        const generateAIAnalysis = (teams) => {
+            let bestTeam = null;
+            let highestScore = -1;
+            
+            teams.forEach(team => {
+                let score = 0;
+                let batters = 0, bowlers = 0, ars = 0, wks = 0;
+                let topPlayer = null;
+
+                if (team.players && team.players.length > 0) {
+                    team.players.forEach(p => {
+                        let pScore = p.basePrice / 100000; 
+                        score += pScore;
+                        if (p.role === 'Batsman') batters++;
+                        else if (p.role === 'Bowler') bowlers++;
+                        else if (p.role === 'All-Rounder') ars++;
+                        else if (p.role === 'Wicket Keeper') wks++;
+                        if (!topPlayer || p.basePrice > topPlayer.basePrice) topPlayer = p;
+                    });
+                    if (batters >= 3) score += 50;
+                    if (bowlers >= 3) score += 50;
+                    if (ars >= 1) score += 30;
+                    if (wks >= 1) score += 30;
+                }
+                team.aiScore = score;
+                if (score > highestScore) {
+                    highestScore = score;
+                    bestTeam = { ...team, topPlayer, batters, bowlers, ars, wks };
+                }
+            });
+
+            if (!bestTeam || !bestTeam.players || bestTeam.players.length === 0) {
+                return { winner: "Market Indecision", text: "The session concluded without substantial acquisitions to perform a comprehensive portfolio analysis." };
+            }
+
+            let analysisText = `**${bestTeam.teamName}** has assembled the most formidable portfolio with a dominance rating of **${highestScore}**. `;
+            if (bestTeam.topPlayer) {
+                analysisText += `Their strategy was highlighted by the marquee acquisition of **${bestTeam.topPlayer.name}**. `;
+            }
+            analysisText += `A highly balanced roster consisting of **${bestTeam.batters} Batsmen**, **${bestTeam.bowlers} Bowlers**, and **${bestTeam.ars} All-Rounders** makes them the primary contender.`;
+
+            return { winner: bestTeam.teamName, text: analysisText };
+        };
+
+        const incrementUserWins = async () => {
+            if (!user || user.isAnonymous) return; 
+            try {
+                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid);
+                const uSnap = await getDoc(userRef);
+                if (uSnap.exists()) {
+                    const currentWins = uSnap.data().wins || 0;
+                    const newWins = currentWins + 1;
+                    const newLevel = newWins + 1; 
+                    await updateDoc(userRef, { wins: newWins, level: newLevel });
+                    fetchLeaderboard(); 
+                }
+            } catch (e) {
+                console.error("Failed to update wins:", e);
+            }
+        };
+
+        // --- DOM Renderers ---
+        const renderLobby = () => {
+            document.getElementById('lobby-room-code').innerText = currentRoomId;
+            document.getElementById('lobby-member-count').innerText = membersData.length;
+            
+            const isHost = roomData.host === user.uid;
+            
+            if (isHost) {
+                document.getElementById('lobby-host-controls').classList.remove('hidden');
+                document.getElementById('lobby-waiting-text').classList.add('hidden');
+                document.getElementById('btn-start-auction').disabled = membersData.length < 2;
+            } else {
+                document.getElementById('lobby-host-controls').classList.add('hidden');
+                document.getElementById('lobby-waiting-text').classList.remove('hidden');
+            }
+
+            const listEl = document.getElementById('lobby-members-list');
+            listEl.innerHTML = membersData.map(m => `
+                <div class="glass-panel rounded-2xl p-4 flex items-center gap-4 border border-slate-700/50 relative overflow-hidden">
+                    <div class="w-12 h-12 rounded-full bg-gradient-to-br from-[#aa8529] to-[#d4af37] flex items-center justify-center font-black text-black font-serif text-lg shadow-[0_0_15px_rgba(212,175,55,0.3)]">
+                        ${m.teamName.substring(0, 2).toUpperCase()}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="font-bold text-white tracking-wide truncate text-sm md:text-base">${m.teamName}</p>
+                        ${m.uid === roomData.host ? '<span class="text-[10px] bg-[#d4af37]/20 text-[#d4af37] px-2 py-0.5 rounded border border-[#d4af37]/30 uppercase tracking-widest mt-1 inline-block">Director</span>' : m.uid.startsWith('bot_') ? '<span class="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded border border-blue-500/30 uppercase tracking-widest mt-1 inline-block"><i class="ph-fill ph-robot"></i> AI Bot</span>' : '<span class="text-[10px] text-slate-500 uppercase tracking-widest mt-1 inline-block">Franchise</span>'}
+                    </div>
+                </div>
+            `).join('');
+        };
+
+        const renderAuctionHeader = () => {
+            const myTeam = membersData.find(m => m.uid === user.uid);
+            document.getElementById('header-room-code').innerText = currentRoomId;
+            if(myTeam) {
+                document.getElementById('header-team-name').innerText = myTeam.teamName;
+                document.getElementById('header-team-purse').innerText = formatMoney(myTeam.purse);
+                document.getElementById('mobile-team-purse').innerText = formatMoney(myTeam.purse);
+            }
+        };
+
+        const renderAuctionBoard = () => {
+            const cardContainer = document.getElementById('auction-player-card');
+            const consoleContainer = document.getElementById('auction-bid-console');
+            
+            if (!cardContainer || !consoleContainer) return;
+            
+            try {
+                if (roomData.status === 'finished') {
+                    stopUITimer();
+                    consoleContainer.classList.add('hidden');
+                    
+                    cardContainer.innerHTML = `
+                        <div class="flex flex-col items-center justify-center text-center py-10 w-full">
+                            <div class="relative mb-8">
+                                <div class="absolute inset-0 bg-[#d4af37] blur-[60px] opacity-20 rounded-full"></div>
+                                <i class="ph-fill ph-trophy text-[#d4af37] text-6xl md:text-8xl drop-shadow-[0_0_30px_rgba(212,175,55,0.6)] relative z-10"></i>
+                            </div>
+                            <h2 class="text-3xl md:text-5xl font-black mb-6 text-white font-serif tracking-widest uppercase text-gold-gradient">Session Concluded</h2>
+                            
+                            <div class="mt-6 w-full max-w-2xl bg-black/60 p-6 md:p-10 rounded-3xl border border-[#d4af37]/40 shadow-[0_0_50px_rgba(212,175,55,0.15)] relative overflow-hidden backdrop-blur-md">
+                                <div class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-[#d4af37] to-transparent"></div>
+                                
+                                ${roomData.aiSummary ? `
+                                    <div class="flex flex-col items-center justify-center gap-3 mb-8 border-b border-slate-700/50 pb-6">
+                                        <div class="p-4 glass-panel rounded-full border border-[#d4af37]/50 mb-2">
+                                            <i class="ph-fill ph-brain text-[#d4af37] text-3xl"></i>
+                                        </div>
+                                        <h3 class="text-sm tracking-[0.3em] font-bold text-slate-400 uppercase">System Evaluation</h3>
+                                    </div>
+                                    <h4 class="text-xl md:text-2xl font-black text-white mb-6 uppercase tracking-wider font-serif">Dominant Franchise:<br/><span class="text-[#d4af37] text-3xl md:text-4xl mt-2 inline-block">${roomData.aiSummary.winner}</span></h4>
+                                    <div class="bg-black/50 p-5 md:p-6 rounded-2xl border border-slate-800">
+                                        <p class="text-slate-300 leading-relaxed md:leading-loose text-left text-sm md:text-base font-medium tracking-wide">${roomData.aiSummary.text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-[#d4af37] font-black">$1</strong>')}</p>
+                                    </div>
+                                ` : `
+                                    <div class="animate-pulse flex flex-col items-center py-10">
+                                        <i class="ph-bold ph-spinner-gap animate-spin text-[#d4af37] text-5xl mb-6"></i>
+                                        <p class="text-[#d4af37] font-bold text-sm tracking-widest uppercase">Processing Portfolio Analytics...</p>
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                consoleContainer.classList.remove('hidden');
+
+                const safeIndex = (roomData.playerIndex >= 0 && roomData.playerIndex < PLAYERS.length) ? roomData.playerIndex : 0;
+                const currentPlayer = PLAYERS[safeIndex];
+                if (!currentPlayer) return;
+
+                const winningTeam = membersData.find(m => m.uid === roomData.highestBidder);
+
+                let isBiddingActive = roomData.currentBid > 0;
+                let currentBidStr = isBiddingActive ? formatMoney(roomData.currentBid) : "Awaiting Bid";
+                let currentBidColor = isBiddingActive ? "text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]" : "text-slate-500";
+                
+                let leaderInfo = "";
+                if (isBiddingActive && winningTeam) {
+                    leaderInfo = `
+                        <div class="mt-4 inline-flex items-center gap-2 bg-[#d4af37]/10 border border-[#d4af37]/30 px-4 py-2 rounded-full">
+                            <i class="ph-fill ph-crown text-[#d4af37]"></i>
+                            <span class="text-[#d4af37] text-xs font-bold uppercase tracking-widest truncate max-w-[150px] md:max-w-xs">${winningTeam.teamName}</span>
+                        </div>`;
+                }
+
+                cardContainer.innerHTML = `
+                    <div class="absolute top-0 right-0 p-4">
+                        <div class="text-[10px] text-slate-500 font-mono border border-slate-700/50 bg-black/40 px-3 py-1 rounded-full uppercase tracking-widest">
+                            Asset ${safeIndex + 1}/${PLAYERS.length}
+                        </div>
+                    </div>
+                    
+                    <div class="relative mb-8 mt-4 group">
+                        <div class="absolute inset-0 bg-[#d4af37] rounded-full blur-[40px] opacity-20 group-hover:opacity-40 transition-opacity duration-700"></div>
+                        <div class="w-32 h-32 md:w-48 md:h-48 rounded-full border-[6px] border-[#1a1a24] ring-4 ring-[#d4af37]/40 overflow-hidden shadow-[0_0_40px_rgba(212,175,55,0.2)] bg-gradient-to-b from-[#1a1a24] to-black flex items-center justify-center relative z-10">
+                            <img src="${currentPlayer.img}" alt="${currentPlayer.name}" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"/>
+                        </div>
+                        <div class="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-[#aa8529] to-[#d4af37] text-black text-xs font-black px-4 py-1.5 rounded-full border-2 border-black shadow-lg z-20 uppercase tracking-widest">
+                            ${currentPlayer.country}
+                        </div>
+                    </div>
+
+                    <h2 class="text-3xl md:text-5xl font-black mb-4 text-center text-white font-serif tracking-wide">${currentPlayer.name}</h2>
+                    
+                    <div class="flex flex-wrap justify-center gap-3 mb-8 w-full">
+                        <span class="bg-black/50 text-slate-300 px-5 py-2 rounded-xl text-xs md:text-sm border border-slate-700 uppercase tracking-widest font-bold flex items-center gap-2"><i class="ph-fill ph-identification-card text-slate-500"></i> ${currentPlayer.role}</span>
+                        <span class="bg-[#d4af37]/10 text-[#d4af37] px-5 py-2 rounded-xl text-xs md:text-sm border border-[#d4af37]/30 font-bold uppercase tracking-widest flex items-center gap-2"><i class="ph-fill ph-tag text-[#d4af37]"></i> Base: ${formatMoney(currentPlayer.basePrice)}</span>
+                    </div>
+
+                    <div class="w-full max-w-lg bg-black/60 rounded-3xl p-6 md:p-8 border border-slate-700/50 text-center relative overflow-hidden backdrop-blur-md shadow-inner">
+                        <p class="text-xs text-slate-400 mb-2 uppercase tracking-[0.3em] font-bold">Current Valuation</p>
+                        <p class="text-4xl md:text-6xl font-black font-mono ${currentBidColor} transition-all duration-300">${currentBidStr}</p>
+                        ${leaderInfo}
+                    </div>
+                `;
+
+                let bidControls = "";
+                if (roomData.saleStatus) {
+                    let isSold = roomData.saleStatus === 'sold';
+                    let statusColor = isSold ? 'text-emerald-400' : 'text-red-400';
+                    let statusBorder = isSold ? 'border-emerald-500/50' : 'border-red-500/50';
+                    let statusBg = isSold ? 'bg-emerald-900/20' : 'bg-red-900/20';
+                    let icon = isSold ? 'ph-check-circle' : 'ph-x-circle';
+                    
+                    bidControls = `
+                        <div class="w-full flex-1 py-4 md:py-6 px-4 rounded-2xl border-2 ${statusBorder} ${statusBg} flex flex-col items-center justify-center animate-pulse relative overflow-hidden">
+                            <i class="ph-fill ${icon} ${statusColor} text-4xl mb-2 opacity-50 absolute right-4 top-1/2 -translate-y-1/2 scale-150 blur-[2px]"></i>
+                            <h2 class="text-3xl md:text-4xl font-black uppercase tracking-[0.2em] ${statusColor} mb-2 relative z-10 font-serif">${roomData.saleStatus}</h2>
+                            <p class="text-white font-bold text-xs md:text-sm text-center uppercase tracking-widest relative z-10">${roomData.saleMessage}</p>
+                        </div>
+                    `;
+                } else if (roomData.currentBid === 0) {
+                    bidControls = `
+                        <div class="flex-1 w-full">
+                            <button class="action-bid-btn w-full bg-gradient-to-r from-[#aa8529] to-[#d4af37] hover:from-[#d4af37] hover:to-[#f3e5ab] border border-[#f3e5ab]/50 py-5 px-6 rounded-2xl font-black transition-all text-sm md:text-base lg:text-lg shadow-[0_0_30px_rgba(212,175,55,0.4)] text-black flex items-center justify-center gap-3 uppercase tracking-widest active:scale-[0.98]" data-amount="0">
+                                <i class="ph-fill ph-gavel text-2xl"></i> Initialize at ${formatMoney(currentPlayer.basePrice)}
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    bidControls = `
+                        <div class="flex-1 grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 w-full">
+                            <button class="action-bid-btn bg-black/50 hover:bg-[#d4af37]/10 border border-slate-600 p-4 rounded-2xl font-bold transition-all text-xs md:text-sm hover:border-[#d4af37] text-white shadow-inner uppercase tracking-wider flex flex-col items-center gap-1 active:scale-95 group" data-amount="1000000">
+                                <i class="ph-bold ph-plus text-[#d4af37] group-hover:scale-125 transition-transform"></i> 10 Lakhs
+                            </button>
+                            <button class="action-bid-btn bg-black/50 hover:bg-[#d4af37]/10 border border-slate-600 p-4 rounded-2xl font-bold transition-all text-xs md:text-sm hover:border-[#d4af37] text-white shadow-inner uppercase tracking-wider flex flex-col items-center gap-1 active:scale-95 group" data-amount="2000000">
+                                <i class="ph-bold ph-plus text-[#d4af37] group-hover:scale-125 transition-transform"></i> 20 Lakhs
+                            </button>
+                            <button class="action-bid-btn bg-black/50 hover:bg-[#d4af37]/10 border border-slate-600 p-4 rounded-2xl font-bold transition-all text-xs md:text-sm hover:border-[#d4af37] text-white shadow-inner uppercase tracking-wider flex flex-col items-center gap-1 active:scale-95 group" data-amount="5000000">
+                                <i class="ph-bold ph-plus text-[#d4af37] group-hover:scale-125 transition-transform"></i> 50 Lakhs
+                            </button>
+                            <button class="action-bid-btn bg-gradient-to-br from-[#aa8529] to-[#d4af37] border border-[#f3e5ab]/30 p-4 rounded-2xl font-black transition-all text-xs md:text-sm shadow-[0_0_20px_rgba(212,175,55,0.3)] text-black uppercase tracking-wider flex flex-col items-center gap-1 active:scale-95" data-amount="10000000">
+                                <i class="ph-bold ph-trend-up text-black"></i> 1 Crore
+                            </button>
+                        </div>
+                    `;
+                }
+
+                consoleContainer.innerHTML = `
+                    <div class="flex flex-col items-center justify-center shrink-0 w-full sm:w-24 border-b sm:border-b-0 sm:border-r border-slate-700/50 pb-4 sm:pb-0 sm:pr-4">
+                        <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-2">Timer</p>
+                        <div id="ui-timer" class="relative flex items-center justify-center w-16 h-16 md:w-20 md:h-20 rounded-full border-[3px] border-[#d4af37] text-[#d4af37] bg-black/50 shadow-inner">
+                            <span id="ui-timer-text" class="text-2xl md:text-3xl font-black font-mono">0</span>
+                        </div>
+                    </div>
+                    ${bidControls}
+                `;
+                
+                startUITimer(roomData.timerEndsAt);
+            } catch (e) {
+                console.error("Board Render Error:", e);
+                cardContainer.innerHTML = `<div class="text-red-400 p-6 glass-panel rounded-xl">Interface Error: Sync Failed.</div>`;
+            }
+        };
+
+        const renderTeams = () => {
+            document.getElementById('auction-teams-count').innerText = membersData.length;
+            const container = document.getElementById('auction-teams-list');
+            
+            container.innerHTML = membersData.map(m => {
+                const isLeading = roomData && m.uid === roomData.highestBidder;
+                const borderClass = isLeading ? 'border-[#d4af37] bg-[#d4af37]/5 shadow-[0_0_15px_rgba(212,175,55,0.1)]' : 'border-slate-800 bg-black/40';
+                const nameColor = isLeading ? 'text-[#d4af37]' : m.uid.startsWith('bot_') ? 'text-blue-300' : 'text-white';
+                
+                let playersHtml = (!m.players || m.players.length === 0) 
+                    ? `<span class="text-[10px] text-slate-600 italic tracking-widest uppercase">Portfolio Empty</span>`
+                    : m.players.map(p => `<span class="text-[9px] md:text-[10px] bg-slate-800 text-slate-300 px-2 py-1 rounded border border-slate-700 truncate max-w-[80px] md:max-w-full uppercase font-bold tracking-wide">${p.name.split(' ')[0]}</span>`).join('');
+
+                return `
+                <div class="p-4 rounded-2xl border ${borderClass} transition-colors">
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="flex-1 min-w-0 pr-2">
+                            <p class="font-bold text-sm truncate flex items-center gap-2 ${nameColor} tracking-wide">
+                                ${isLeading ? '<i class="ph-fill ph-crown"></i>' : m.uid.startsWith('bot_') ? '<i class="ph-fill ph-robot"></i>' : ''} ${m.teamName}
+                            </p>
+                            <p class="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">Assets: ${m.players?.length||0}/11</p>
+                        </div>
+                        <p class="font-mono font-black text-emerald-400 text-sm shrink-0 drop-shadow-[0_0_5px_rgba(52,211,153,0.3)]">${formatMoney(m.purse)}</p>
+                    </div>
+                    <div class="flex flex-wrap gap-1.5">
+                        ${playersHtml}
+                    </div>
+                </div>
+                `;
+            }).join('');
+        };
+
+        const renderLogs = () => {
+            const container = document.getElementById('auction-logs-list');
+            const logs = [...(roomData.logs || [])].reverse().slice(0, 30);
+            
+            container.innerHTML = logs.map(log => {
+                const isSystem = log.sender === 'System';
+                let senderColor = isSystem ? 'text-[#d4af37]' : 'text-slate-400';
+                let textColor = isSystem ? 'text-slate-300' : 'text-white';
+                
+                let bgClass = 'border-b border-slate-800/50 pb-2 mb-2 last:border-0';
+                let iconHtml = isSystem ? '<i class="ph-fill ph-info text-[#d4af37] mt-0.5"></i>' : '<i class="ph-fill ph-chat-circle text-slate-500 mt-0.5"></i>';
+
+                if (isSystem) {
+                    if (log.text.includes('UNSOLD')) {
+                        bgClass = 'bg-red-900/20 border-l-2 border-red-500 p-2 rounded my-1';
+                        textColor = 'text-red-200';
+                        iconHtml = '<i class="ph-fill ph-x-circle text-red-500 mt-0.5"></i>';
+                    }
+                    else if (log.text.includes('SOLD') || log.text.includes('COMPLETE')) {
+                        bgClass = 'bg-emerald-900/20 border-l-2 border-emerald-500 p-2 rounded my-1';
+                        textColor = 'text-emerald-200';
+                        iconHtml = '<i class="ph-fill ph-check-circle text-emerald-500 mt-0.5"></i>';
+                    }
+                }
+
+                return `
+                <div class="flex items-start gap-2 text-xs md:text-sm ${bgClass}">
+                    ${iconHtml}
+                    <div>
+                        <span class="font-bold uppercase tracking-wider text-[10px] md:text-xs block mb-0.5 ${senderColor}">${log.sender}</span>
+                        <span class="${textColor} tracking-wide">${log.text}</span>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        };
+
+        const startUITimer = (endsAt) => {
+            stopUITimer();
+            const updateUI = () => {
+                const timerEl = document.getElementById('ui-timer');
+                const textEl = document.getElementById('ui-timer-text');
+                if(!timerEl || !textEl) return;
+
+                const remaining = Math.max(0, Math.floor((endsAt - Date.now()) / 1000));
+                textEl.innerText = remaining;
+                
+                if (roomData && roomData.saleStatus) {
+                    timerEl.classList.remove('border-red-500', 'text-red-500', 'bg-red-500/10', 'animate-pulse');
+                    timerEl.classList.add('border-[#d4af37]', 'text-[#d4af37]');
+                    return;
+                }
+
+                if (remaining > 0 && remaining <= 5) {
+                    timerEl.classList.remove('border-[#d4af37]', 'text-[#d4af37]');
+                    timerEl.classList.add('border-red-500', 'text-red-500', 'bg-red-500/10', 'animate-pulse');
+                } else {
+                    timerEl.classList.remove('border-red-500', 'text-red-500', 'bg-red-500/10', 'animate-pulse');
+                    timerEl.classList.add('border-[#d4af37]', 'text-[#d4af37]');
+                }
+            };
+            
+            updateUI();
+            uiTimerInterval = setInterval(updateUI, 500);
+        };
+
+        const stopUITimer = () => {
+            if (uiTimerInterval) {
+                clearInterval(uiTimerInterval);
+                uiTimerInterval = null;
+            }
+        };
+
+        let lastProcessedTime = 0;
+        let lastBotBidTime = 0;
+
+        const startHostLogic = () => {
+            if (hostTimerInterval) clearInterval(hostTimerInterval);
+            
+            hostTimerInterval = setInterval(async () => {
+                if (!roomData || roomData.status !== 'live' || roomData.host !== user?.uid) return;
+
+                const timeRemaining = roomData.timerEndsAt - Date.now();
+                
+                // --- ADVANCED AI BOT BIDDING LOGIC ---
+                if (roomData.isBotMatch && !roomData.saleStatus && timeRemaining > 1000) {
+                    // Random dynamic delay between 700ms to 1500ms
+                    if (Date.now() - lastBotBidTime > (Math.random() * 800 + 700)) { 
+                        const currentPlayer = PLAYERS[roomData.playerIndex];
+                        if (currentPlayer) {
+                            const botMultipliers = [8.0, 12.0, 6.0, 10.0, 15.0]; 
+                            
+                            const availableBots = membersData.filter(m => {
+                                if (!m.uid.startsWith('bot_')) return false;
+                                if (m.uid === roomData.highestBidder) return false;
+
+                                const botPlayers = m.players || [];
+                                if (botPlayers.length >= 11) return false;
+                                
+                                const roleCount = botPlayers.filter(p => p.role === currentPlayer.role).length;
+                                let roleMultiplier = 1;
+                                if (roleCount === 0) roleMultiplier = 1.5;
+                                else if (roleCount > 3) roleMultiplier = 0.5;
+
+                                const botPrefixStr = m.uid.split('_')[1];
+                                const botIndex = parseInt(botPrefixStr) || 0;
+                                const baseMultiplier = botMultipliers[botIndex] || 5.0;
+                                
+                                const slotsToFill = 11 - botPlayers.length - 1;
+                                const minimumReserve = Math.max(0, slotsToFill * 2000000); // Need at least 20L per slot
+                                const safetyBuffer = Math.max(0, slotsToFill * 10000000); // 1Cr average buffer
+                                
+                                const maxWillingToPay = Math.min(
+                                    m.purse - minimumReserve, 
+                                    currentPlayer.basePrice * baseMultiplier * roleMultiplier
+                                );
+                                
+                                const projectedNewBid = roomData.currentBid + 1000000;
+                                const remainingPurseAfterBid = m.purse - projectedNewBid;
+
+                                // Smart budgeting: Avoid bankrupting if they need players
+                                if (slotsToFill > 0 && remainingPurseAfterBid < safetyBuffer && roleMultiplier < 1.5) {
+                                    return false;
+                                }
+
+                                return m.purse >= projectedNewBid && 
+                                       (roomData.currentBid || currentPlayer.basePrice) < maxWillingToPay;
+                            });
+
+                            if (availableBots.length > 0 && Math.random() > 0.20) { 
+                                const biddingBot = availableBots[Math.floor(Math.random() * availableBots.length)];
+                                
+                                let addedAmount = 1000000;
+                                if (roomData.currentBid >= 10000000) addedAmount = 5000000;
+                                if (roomData.currentBid >= 50000000) addedAmount = 10000000;
+
+                                let newBid = roomData.currentBid === 0 ? currentPlayer.basePrice : roomData.currentBid + addedAmount;
+                                
+                                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
+                                await updateDoc(roomRef, {
+                                    currentBid: newBid,
+                                    highestBidder: biddingBot.uid,
+                                    timerEndsAt: Date.now() + TIMER_DURATION 
+                                });
+                                await addChatLog(currentRoomId, `Proposed ${formatMoney(newBid)} for ${currentPlayer.name}`, biddingBot.teamName);
+                                lastBotBidTime = Date.now();
+                            }
+                        }
+                    }
+                }
+                // --- END AI LOGIC ---
+
+                if (timeRemaining <= 0 && (Date.now() - lastProcessedTime > 2000)) {
+                    lastProcessedTime = Date.now();
+                    
+                    if (roomData.saleStatus) {
+                        moveToNextPlayer();
+                    } else {
+                        processPlayerSale();
+                    }
+                }
+            }, 500);
+        };
+
+        const stopHostLogic = () => {
+            if (hostTimerInterval) {
+                clearInterval(hostTimerInterval);
+                hostTimerInterval = null;
+            }
+        };
+        
+        const addChatLog = async (roomId, message, overrideSender = null) => {
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+            await updateDoc(roomRef, {
+                logs: arrayUnion({ text: message, sender: overrideSender || teamName || 'System', timestamp: Date.now() })
+            });
+        };
+
+        const leaveRoom = () => {
+            if(unsubRoom) { unsubRoom(); unsubRoom = null; }
+            if(unsubMembers) { unsubMembers(); unsubMembers = null; }
+            stopHostLogic();
+            stopUITimer();
+            currentRoomId = null;
+            roomData = null;
+            membersData = [];
+            updateViewState();
+        };
+
+        window.placeBid = async (addedAmount) => {
+            if (!roomData || roomData.status !== 'live') return;
+            if (roomData.saleStatus) return; 
+            
+            const currentPlayer = PLAYERS[roomData.playerIndex];
+            if(!currentPlayer) return;
+
+            let newBid = roomData.currentBid === 0 ? currentPlayer.basePrice : roomData.currentBid + addedAmount;
+            
+            const myTeam = membersData.find(m => m.uid === user.uid);
+            if (!myTeam) return;
+
+            if (myTeam.purse < newBid) {
+                showToast("Insufficient capital for this transaction.");
+                return;
+            }
+
+            if (roomData.highestBidder === user.uid) {
+                showToast("You currently hold the highest bid.");
+                return;
+            }
+
+            try {
+                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
+                await updateDoc(roomRef, {
+                    currentBid: newBid,
+                    highestBidder: user.uid,
+                    timerEndsAt: Date.now() + TIMER_DURATION 
+                });
+                
+                await addChatLog(currentRoomId, `Proposed ${formatMoney(newBid)} for ${currentPlayer.name}`);
+            } catch(e) {
+                console.error(e);
+            }
+        };
+
+        const processPlayerSale = async () => {
+            try {
+                const currentPlayer = PLAYERS[roomData.playerIndex];
+                if (!currentPlayer) return;
+
+                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
+                let updatedMembersCopy = JSON.parse(JSON.stringify(membersData));
+                
+                let sStatus = 'unsold';
+                let sMessage = `Asset ${currentPlayer.name} passed.`;
+                
+                if (roomData.highestBidder) {
+                    const winnerIdx = updatedMembersCopy.findIndex(m => m.uid === roomData.highestBidder);
+                    if (winnerIdx !== -1) {
+                        updatedMembersCopy[winnerIdx].purse -= roomData.currentBid;
+                        if(!updatedMembersCopy[winnerIdx].players) updatedMembersCopy[winnerIdx].players = [];
+                        updatedMembersCopy[winnerIdx].players.push(currentPlayer);
+
+                        const memberRef = doc(db, 'artifacts', appId, 'public', 'data', 'roomMembers', `${currentRoomId}_${roomData.highestBidder}`);
+                        await updateDoc(memberRef, {
+                            purse: updatedMembersCopy[winnerIdx].purse,
+                            players: arrayUnion(currentPlayer)
+                        });
+                        
+                        sStatus = 'sold';
+                        sMessage = `Acquired by ${updatedMembersCopy[winnerIdx].teamName} for ${formatMoney(roomData.currentBid)}`;
+                        await addChatLog(currentRoomId, `TRANSACTION COMPLETE: ${currentPlayer.name} ${sMessage}`, 'System');
+                    }
+                } else {
+                    await addChatLog(currentRoomId, `MARKET PASSED: ${sMessage}`, 'System');
+                }
+
+                await updateDoc(roomRef, { 
+                    saleStatus: sStatus,
+                    saleMessage: sMessage,
+                    timerEndsAt: Date.now() + 5000 
+                });
+            } catch (err) {
+                console.error("Error processing sale", err);
+            }
+        };
+
+        const moveToNextPlayer = async () => {
+            try {
+                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
+                
+                const allTeamsHave11 = membersData.length > 0 && membersData.every(m => m.players && m.players.length >= 11);
+                const noMorePlayers = roomData.playerIndex + 1 >= PLAYERS.length;
+
+                if (allTeamsHave11 || noMorePlayers) {
+                    const analysis = generateAIAnalysis(membersData);
+                    const updatePayload = {
+                        status: 'finished',
+                        aiSummary: analysis,
+                        saleStatus: null
+                    };
+                    
+                    if (roomData.isBotMatch && analysis.winner === teamName && !roomData.leaderboardUpdated) {
+                         if (roomData.host === user.uid) { 
+                             updatePayload.leaderboardUpdated = true;
+                             incrementUserWins(); 
+                         }
+                    }
+
+                    await updateDoc(roomRef, updatePayload);
+                    await addChatLog(currentRoomId, `Session Closed. Generating portfolio analytics.`, 'System');
+                } else {
+                    await updateDoc(roomRef, {
+                        playerIndex: roomData.playerIndex + 1,
+                        currentBid: 0,
+                        highestBidder: null,
+                        saleStatus: null,
+                        timerEndsAt: Date.now() + TIMER_DURATION
+                    });
+                }
+            } catch (err) {
+                console.error("Error moving next", err);
+            }
+        };
+
+        const listenToRoom = (roomId) => {
+            if(unsubRoom) unsubRoom();
+            if(unsubMembers) unsubMembers();
+
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+            unsubRoom = onSnapshot(roomRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const newData = { id: docSnap.id, ...docSnap.data() };
+                    roomData = newData;
+                    
+                    if (roomData.status === 'live' && roomData.host === user.uid && !hostTimerInterval) {
+                        startHostLogic();
+                    } else if (roomData.status !== 'live') {
+                        stopHostLogic();
+                    }
+
+                    updateViewState();
+                } else {
+                    showToast("Session terminated by host.");
+                    leaveRoom();
+                }
+            }, (err) => console.error("Room sync error", err));
+
+            const membersRef = collection(db, 'artifacts', appId, 'public', 'data', 'roomMembers');
+            unsubMembers = onSnapshot(membersRef, (snapshot) => {
+                const allMembers = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                membersData = allMembers.filter(m => m.roomId === roomId);
+                updateViewState();
+            }, (err) => console.error("Members sync error", err));
+        };
+
+        const createRoom = async (isBotMatch = false, botCount = 3) => {
+            if (!user) return;
+            const code = generateRoomCode();
+            
+            try {
+                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code);
+                await setDoc(roomRef, {
+                    status: 'waiting',
+                    host: user.uid,
+                    createdAt: Date.now(),
+                    isBotMatch: isBotMatch,
+                    playerIndex: 0,
+                    currentBid: 0,
+                    highestBidder: null,
+                    saleStatus: null,
+                    timerEndsAt: 0,
+                    logs: []
+                });
+
+                const memberRef = doc(db, 'artifacts', appId, 'public', 'data', 'roomMembers', `${code}_${user.uid}`);
+                await setDoc(memberRef, {
+                    roomId: code,
+                    uid: user.uid,
+                    teamName,
+                    purse: INITIAL_PURSE,
+                    players: []
+                });
+
+                if (isBotMatch) {
+                    const allBotNames = ["Mumbai Masters", "Chennai Champions", "Delhi Dragons", "Bangalore Blasters", "Kolkata Knights", "Hyderabad Hawks", "Punjab Panthers", "Rajasthan Royals", "Lucknow Legends", "Gujarat Giants"];
+                    const availableNames = allBotNames.filter(n => n.toLowerCase() !== teamName.toLowerCase());
+                    availableNames.sort(() => 0.5 - Math.random()); 
+                    
+                    for (let i = 0; i < botCount; i++) {
+                        const botUid = `bot_${i}_${code}`; 
+                        const botRef = doc(db, 'artifacts', appId, 'public', 'data', 'roomMembers', `${code}_${botUid}`);
+                        await setDoc(botRef, {
+                            roomId: code,
+                            uid: botUid,
+                            teamName: availableNames[i] || `AI Bot ${i+1}`,
+                            purse: INITIAL_PURSE,
+                            players: []
+                        });
+                    }
+                }
+
+                currentRoomId = code;
+                showToast(isBotMatch ? `AI Lobby Established with ${botCount} Bot(s)` : "Secure Room Established");
+                listenToRoom(code);
+            } catch (err) {
+                console.error(err);
+                showToast("Failed to establish secure room.");
+            }
+        };
+
+        const joinRoom = async (code) => {
+            if (!user || !code) return;
+            code = code.toUpperCase();
+
+            try {
+                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code);
+                const roomSnap = await getDoc(roomRef);
+                
+                if (!roomSnap.exists()) {
+                    showToast("Invalid Access Code.");
+                    return;
+                }
+                
+                if (roomSnap.data().status === 'finished') {
+                    showToast("This session has concluded.");
+                    return;
+                }
+
+                const memberRef = doc(db, 'artifacts', appId, 'public', 'data', 'roomMembers', `${code}_${user.uid}`);
+                const memberSnap = await getDoc(memberRef);
+                
+                if (!memberSnap.exists()) {
+                    await setDoc(memberRef, {
+                        roomId: code,
+                        uid: user.uid,
+                        teamName,
+                        purse: INITIAL_PURSE,
+                        players: []
+                    });
+                    await updateDoc(roomRef, {
+                        logs: arrayUnion({ text: `Franchise ${teamName} connected.`, sender: 'System', timestamp: Date.now() })
+                    });
+                }
+
+                currentRoomId = code;
+                listenToRoom(code);
+            } catch (err) {
+                console.error(err);
+                showToast("Connection to room failed.");
+            }
+        };
+        
+        const initAuth = async () => {
+            try {
+                await setPersistence(auth, browserSessionPersistence);
+            } catch (err) {
+                console.error("Auth persistence error", err);
+            }
+
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                try {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } catch(err) {
+                    console.error("Auto token auth failed", err);
+                }
+            }
+        };
+
+        onAuthStateChanged(auth, async (u) => {
+            user = u;
+            if (user) {
+                // Admin Setup
+                if (user.email === 'admin@amey.com') {
+                    isAdmin = true;
+                    authReady = true;
+                    updateViewState();
+                    return;
+                }
+
+                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid);
+                try {
+                    const userSnap = await getDoc(userRef);
+                    if (userSnap.exists()) {
+                        const data = userSnap.data();
+
+                        // Ban Check Protocol
+                        if (data.isBanned && data.banExpiry > Date.now()) {
+                            showToast("Admin banned you wait for 2 days.");
+                            await signOut(auth);
+                            user = null;
+                            hasJoinedIdentity = false;
+                            authReady = true;
+                            updateViewState();
+                            return;
+                        }
+
+                        if (data.teamName) {
+                            teamName = data.teamName;
+                            userLevel = data.level || 1;
+                            hasJoinedIdentity = true;
+                        } else {
+                            hasJoinedIdentity = false;
+                        }
+                    } else {
+                        hasJoinedIdentity = false;
+                    }
+                    fetchLeaderboard();
+                } catch(e) {
+                    hasJoinedIdentity = false;
+                }
+            } else {
+                isAdmin = false;
+                hasJoinedIdentity = false;
+            }
+            authReady = true;
+            updateViewState();
+        });
+
+        initAuth();
+
+        document.getElementById('auth-toggle-btn').addEventListener('click', () => {
+            isLoginMode = !isLoginMode;
+            document.getElementById('auth-title').innerText = isLoginMode ? "Authentication" : "Registration";
+            document.getElementById('auth-submit-btn').innerText = isLoginMode ? "Authenticate" : "Register Credentials";
+            document.getElementById('auth-toggle-btn').innerText = isLoginMode ? "New user? Register access" : "Existing user? Authenticate here";
+        });
+
+        document.getElementById('auth-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('auth-email').value.trim();
+            const password = document.getElementById('auth-password').value;
+            
+            try {
+                if (isLoginMode) {
+                    // Admin Interceptor Login/Creation
+                    if (email === 'admin@amey.com' && password === 'Iamadmin') {
+                        try {
+                            await signInWithEmailAndPassword(auth, email, password);
+                            showToast("Admin Protocol Initialized");
+                        } catch (signInErr) {
+                            try {
+                                await createUserWithEmailAndPassword(auth, email, password);
+                                showToast("Admin Directory Created");
+                            } catch (createErr) {
+                                showToast("Admin Config Failed.");
+                            }
+                        }
+                        return;
+                    }
+
+                    await signInWithEmailAndPassword(auth, email, password);
+                    showToast("Authentication Successful");
+                } else {
+                    await createUserWithEmailAndPassword(auth, email, password);
+                    showToast("Credentials Registered");
+                }
+            } catch (err) {
+                console.error(err);
+                showToast(err.message.replace("Firebase: ", "") || "Authentication failed.");
+            }
+        });
+
+        document.querySelectorAll('.btn-logout').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                await signOut(auth);
+                isAdmin = false;
+                hasJoinedIdentity = false;
+                teamName = "";
+                leaveRoom();
+            });
+        });
+
+        document.getElementById('identity-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const val = document.getElementById('team-name-input').value;
+            if (val.trim().length < 3) {
+                showToast("Franchise identity requires minimum 3 characters.");
+                return;
+            }
+            teamName = val;
+            hasJoinedIdentity = true;
+            updateViewState();
+            
+            if (user) {
+                try {
+                    const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid);
+                    await setDoc(userRef, { 
+                        teamName, 
+                        wins: 0, 
+                        level: 1,
+                        isGuest: user.isAnonymous 
+                    }, { merge: true });
+                    fetchLeaderboard();
+                } catch(err) {
+                    console.error("Could not save profile:", err);
+                }
+            }
+        });
+
+        // Initialize Rooms
+        document.getElementById('btn-create-room').addEventListener('click', () => createRoom(false));
+        
+        // Bot Modal Logic
+        let selectedBotCount = 3;
+        const botModal = document.getElementById('bot-modal');
+        
+        document.getElementById('btn-play-bot').addEventListener('click', () => {
+            botModal.classList.remove('hidden');
+        });
+        
+        document.getElementById('btn-cancel-bot').addEventListener('click', () => {
+            botModal.classList.add('hidden');
+        });
+
+        document.querySelectorAll('.bot-count-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.bot-count-btn').forEach(b => {
+                    b.classList.remove('bg-[#d4af37]/20', 'border-[#d4af37]', 'text-[#d4af37]');
+                    b.classList.add('bg-black/50', 'border-slate-600', 'text-white');
+                });
+                e.target.classList.remove('bg-black/50', 'border-slate-600', 'text-white');
+                e.target.classList.add('bg-[#d4af37]/20', 'border-[#d4af37]', 'text-[#d4af37]');
+                selectedBotCount = parseInt(e.target.getAttribute('data-count'));
+            });
+        });
+
+        document.getElementById('btn-confirm-bot').addEventListener('click', () => {
+            botModal.classList.add('hidden');
+            createRoom(true, selectedBotCount);
+        });
+
+        document.getElementById('form-join-code').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const code = document.getElementById('room-code-input').value;
+            joinRoom(code);
+        });
+
+        document.querySelectorAll('.btn-leave-room').forEach(btn => {
+            btn.addEventListener('click', leaveRoom);
+        });
+
+        document.getElementById('btn-start-auction').addEventListener('click', async () => {
+            if (membersData.length < 2) {
+                showToast("Minimum 2 franchises required to commence.");
+                return;
+            }
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
+            await updateDoc(roomRef, {
+                status: 'live',
+                timerEndsAt: Date.now() + TIMER_DURATION,
+                logs: arrayUnion({ text: `Session Commenced. Bidding is live.`, sender: 'System', timestamp: Date.now() })
+            });
+        });
+
+        document.getElementById('chat-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const input = document.getElementById('chat-input');
+            const msg = input.value.trim();
+            if (!msg) return;
+            addChatLog(currentRoomId, msg);
+            input.value = "";
+        });
+
+    </script>
+</body>
+</html>
